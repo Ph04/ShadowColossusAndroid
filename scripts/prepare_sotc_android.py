@@ -111,6 +111,7 @@ def generate_game_sources(upstream: Path, iso: Path, host_build: Path, jobs: int
         # Enable that subdirectory only for the full VU1 build; with --skip-vu1
         # the EE recompiler can still be built without pulling in test targets.
         "-DPS2X_BUILD_TEST=" + ("OFF" if skip_vu1 else "ON"),
+        "-DBUILD_TESTING=OFF",
         "-DPS2X_BUILD_STUDIO=OFF",
         "-DPS2X_ENABLE_FFMPEG=OFF",
         "-DPS2X_ENABLE_DEBUG_UI=OFF",
