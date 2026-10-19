@@ -265,7 +265,7 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Não foi possível encaminhar a ISO à engine nativa.", Toast.LENGTH_LONG).show()
             return
         }
-        startActivity(Intent(this, android.app.NativeActivity::class.java))
+        startActivity(Intent(this, GameActivity::class.java))
     }
 
     private fun formatGiB(bytes: Long): String = String.format("%.2f", bytes / (1024.0 * 1024.0 * 1024.0))
