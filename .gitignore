@@ -1,0 +1,16 @@
+.gradle/
+.idea/
+local.properties
+**/build/
+.externalNativeBuild/
+.cxx/
+*.iml
+.DS_Store
+# Never commit user game images, extracted assets, saves, or generated game code.
+Game/
+*.iso
+*.bin
+*.elf
+Port/generated/
+memcards/
+game_data/
