@@ -7,8 +7,8 @@
 #if defined(SOTC_GAME_ENGINE_AVAILABLE)
 namespace {
 constexpr char kStatus[] =
-    "Fontes do jogo ligadas ao runner Android. O Android usa GS por software como fallback "
-    "para evitar o renderer OpenGL 4.6 do desktop; desempenho e gameplay ainda precisam de teste real.";
+    "Fontes do jogo ligadas ao runner Android. GS por software como fallback; controles touch "
+    "integrados ao controle PS2. Boot, imagem, áudio e desempenho ainda precisam de teste real.";
 }
 #else
 namespace {
