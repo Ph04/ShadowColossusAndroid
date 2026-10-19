@@ -129,7 +129,11 @@ class TouchControlsView(
                 if (target.kind == Kind.TOGGLE) {
                     togglePointer = id
                     controlsVisible = !controlsVisible
-                    if (!controlsVisible) releaseAllControls()
+                    if (!controlsVisible) {
+                        releaseAllControls()
+                        activePointers.clear()
+                        activePointers[id] = target
+                    }
                 } else {
                     updateTarget(id, event.getX(index), event.getY(index))
                     syncButtons()
