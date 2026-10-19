@@ -21,7 +21,7 @@ O APK ainda não inicia Shadow of the Colossus.
 
 ## Importação da ISO
 
-Na tela inicial, selecione sua própria ISO PAL europeia `SCES-53326 v1.00`. O app copia o arquivo para o armazenamento privado e verifica o tamanho esperado de 4.635.918.336 bytes e o SHA-256 da versão suportada. É necessário espaço interno livre suficiente; a ISO não é enviada ao GitHub.
+Na tela inicial, selecione sua própria ISO PAL europeia `SCES-53326 v1.00`. O app copia o arquivo para o armazenamento privado e verifica o tamanho esperado de 4.635.918.336 bytes. A identificação real da edição é validada depois pelo runtime por meio do boot ELF e dos módulos esperados; tamanho correto, sozinho, não prova que a ISO é compatível. É necessário espaço interno livre suficiente; a ISO não é enviada ao GitHub.
 
 A ISO, assets, fontes C++ geradas e saves são excluídos do Git.
 
