@@ -27,6 +27,18 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Audit upstream Android port blockers
+        run: python3 scripts/android_port_audit.py --upstream upstream/sotc-vibe-pc --output build/ANDROID_PORT_AUDIT.md
+
+      - name: Upload Android port audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-port-audit
+          path: build/ANDROID_PORT_AUDIT.md
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
