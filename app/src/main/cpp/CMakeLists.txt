@@ -77,6 +77,26 @@ if(EXISTS "${SOTC_GENERATED}/register_functions.cpp" AND
     target_include_directories(sotc_game_code BEFORE PRIVATE "${SOTC_ARM_SSE_SHIM_DIR}")
     set_target_properties(sotc_game_code PROPERTIES UNITY_BUILD OFF)
 
+    # The upstream PC build precompiles the runtime/generated headers for this
+    # large target. Keep the same strategy on NDK/Clang to avoid reparsing the
+    # runtime API thousands of times during a first local ISO build.
+    target_precompile_headers(sotc_game_code PRIVATE
+        "${SOTC_PS2RECOMP}/ps2xRuntime/include/ps2_runtime_macros.h"
+        "${SOTC_PS2RECOMP}/ps2xRuntime/include/ps2_runtime.h"
+        "${SOTC_GENERATED}/ps2_recompiled_functions.h"
+        "${SOTC_GENERATED}/ps2_recompiled_stubs.h"
+        "${SOTC_PS2RECOMP}/ps2xRuntime/include/ps2_syscalls.h"
+        "${SOTC_PS2RECOMP}/ps2xRuntime/include/ps2_stubs.h"
+    )
+
+    # register_functions.cpp can be an exceptionally large generated TU.
+    # Disable optimizer passes for this registration table to reduce peak
+    # memory during Android builds; gameplay functions remain optimized.
+    set_source_files_properties(
+        "${SOTC_GENERATED}/register_functions.cpp"
+        PROPERTIES COMPILE_OPTIONS "-O0"
+    )
+
     # Replace the generic runner entry point with the game-specific boot path.
     set(SOTC_GENERIC_MAIN "${SOTC_PS2RECOMP}/ps2xRuntime/src/main.cpp")
     file(TO_CMAKE_PATH "${SOTC_GENERIC_MAIN}" SOTC_GENERIC_MAIN_NORMALIZED)
