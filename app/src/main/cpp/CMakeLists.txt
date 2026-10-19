@@ -120,6 +120,10 @@ if(EXISTS "${SOTC_GENERATED}/register_functions.cpp" AND
     target_link_libraries(sotc_game_code PUBLIC ps2_runtime)
     target_include_directories(sotc_game_code BEFORE PRIVATE "${SOTC_ARM_SSE_SHIM_DIR}")
     set_target_properties(sotc_game_code PROPERTIES UNITY_BUILD OFF)
+    # The generated game is a large number of C++ translation units; compile
+    # them serially under Ninja to avoid exhausting memory on ordinary PCs.
+    set_property(GLOBAL APPEND PROPERTY JOB_POOLS sotc_engine_compile=1)
+    set_property(TARGET sotc_game_code PROPERTY JOB_POOL_COMPILE sotc_engine_compile)
 
     # The upstream PC build precompiles the runtime/generated headers for this
     # large target. Keep the same strategy on NDK/Clang to avoid reparsing the
