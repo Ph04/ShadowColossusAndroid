@@ -12,6 +12,7 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.zip.ZipFile
 
 /**
  * Diagnostic helper shared by the launcher and ISO import worker.
@@ -70,14 +71,18 @@ object DiagnosticLogger {
         manager?.getMemoryInfo(memory)
         val stat = StatFs(context.filesDir.absolutePath)
         val nativeDir = File(context.applicationInfo.nativeLibraryDir)
-        val libraries = listOf(
-            "libsotc_android_bridge.so",
-            "libsotc_android_touch.so",
-            "libps2EntryRunner.so",
-        ).joinToString("\n") { name ->
-            val file = File(nativeDir, name)
-            "$name: exists=${file.isFile}; bytes=${if (file.isFile) file.length() else 0L}"
-        }
+        val libraries = runCatching {
+            ZipFile(context.applicationInfo.sourceDir).use { apk ->
+                listOf(
+                    "libsotc_android_bridge.so",
+                    "libsotc_android_touch.so",
+                    "libps2EntryRunner.so",
+                ).joinToString("\n") { name ->
+                    val entry = apk.getEntry("lib/arm64-v8a/$name")
+                    "$name: packaged=${entry != null}; bytes=${entry?.size ?: 0L}"
+                }
+            }
+        }.getOrElse { "APK_NATIVE_LIBRARY_CHECK_ERROR: ${it.javaClass.name}: ${it.message}" }
         val nativeEngine = safe("native_engine_available") { engineAvailable().toString() }
         val runtime = safe("native_runtime_status", runtimeStatus)
         val nativeReport = safe("native_build_report", nativeBuildReport)

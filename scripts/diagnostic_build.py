@@ -138,8 +138,12 @@ def main() -> int:
             (["git", "--version"], "git"),
             (["cmake", "--version"], "cmake"),
             (["ninja", "--version"], "ninja"),
+            (["make", "--version"], "make"),
+            (["cl"], "msvc_cl"),
+            (["clang-cl", "--version"], "clang_cl"),
             (["clang", "--version"], "clang"),
             (["clang++", "--version"], "clang++"),
+            (["cc", "--version"], "cc"),
             (["g++", "--version"], "g++"),
             (["java", "-version"], "java"),
             (["gradle", "--version"], "gradle"),
@@ -157,6 +161,19 @@ def main() -> int:
         emit(log, f"generated_directory_before={generated_before}")
         emit(log, f"generated_cpp_count_before={cpp_before}")
         emit(log, f"generated_header_count_before={headers_before}")
+        host_cache = upstream / "build" / "android-host-tools" / "CMakeCache.txt"
+        emit(log, f"host_cmake_cache_path={host_cache}")
+        emit(log, f"host_cmake_cache_exists={host_cache.is_file()}")
+        if host_cache.is_file():
+            wanted_cache_keys = (
+                "CMAKE_GENERATOR:INTERNAL=",
+                "CMAKE_C_COMPILER:FILEPATH=",
+                "CMAKE_CXX_COMPILER:FILEPATH=",
+                "CMAKE_BUILD_TYPE:STRING=",
+            )
+            for cache_line in host_cache.read_text(encoding="utf-8", errors="replace").splitlines():
+                if cache_line.startswith(wanted_cache_keys):
+                    emit(log, "host_cmake_cache:" + cache_line)
 
         command = [
             sys.executable,
