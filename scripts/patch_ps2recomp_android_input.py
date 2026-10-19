@@ -40,8 +40,8 @@ READ_BLOCK = '''#if defined(__ANDROID__)
                 }
                 if (touchRightActive)
                 {
-                    state.rightX = axisToByte(touchRightX);
-                    state.rightY = axisToByte(touchRightY);
+                    state.rightX = axisToByte((rightStickInvert() & kInvertRightX) != 0u ? -touchRightX : touchRightX);
+                    state.rightY = axisToByte((rightStickInvert() & kInvertRightY) != 0u ? -touchRightY : touchRightY);
                 }
             }
 #endif
@@ -56,7 +56,17 @@ READ_BLOCK = '''#if defined(__ANDROID__)
 def patch(source: Path) -> None:
     text = source.read_text(encoding="utf-8")
     if "sotcAndroidTouchRead" in text and "sotc_android_touch.h" in text:
-        print(f"Android touch hook already applied: {source}")
+        # Allow a local checkout patched by an earlier app build to pick up
+        # correctness fixes without requiring the user to reclone submodules.
+        text = text.replace(
+            "state.rightX = axisToByte(touchRightX);",
+            "state.rightX = axisToByte((rightStickInvert() & kInvertRightX) != 0u ? -touchRightX : touchRightX);",
+        ).replace(
+            "state.rightY = axisToByte(touchRightY);",
+            "state.rightY = axisToByte((rightStickInvert() & kInvertRightY) != 0u ? -touchRightY : touchRightY);",
+        )
+        source.write_text(text, encoding="utf-8")
+        print(f"Android touch hook already applied / refreshed: {source}")
         return
     if INCLUDE_ANCHOR not in text:
         raise SystemExit(f"Não reconheci o cabeçalho esperado em {source}; PS2Recomp pode ter mudado.")
