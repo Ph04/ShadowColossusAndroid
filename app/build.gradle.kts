@@ -12,8 +12,8 @@ android {
         applicationId = "dev.mobile.sotcandroid"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-dev"
+        versionCode = 2
+        versionName = "0.2.0-dev"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -33,7 +33,7 @@ android {
                     "-DPS2X_RUNNER_UNITY_BUILD_BATCH_SIZE=16",
                     "-DANDROID_CPP_FEATURES=rtti exceptions",
                 )
-                targets += listOf("sotc_android_bridge", "ps2EntryRunner")
+                targets += listOf("sotc_android_bridge", "sotc_android_touch", "ps2EntryRunner")
             }
         }
     }
