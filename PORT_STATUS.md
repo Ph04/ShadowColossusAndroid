@@ -31,3 +31,7 @@ O APK de diagnóstico não é um jogo jogável até que o código recompilado, o
 ## Fluxo local
 
 Consulte [docs/ANDROID_BUILD_FROM_ISO.md](docs/ANDROID_BUILD_FROM_ISO.md) para gerar as fontes da ISO e construir o APK sem enviá-las ao repositório público.
+
+## Fallback gráfico
+
+O bridge força `PS2X_GS_GPU=0` e `PS2X_GS_THREAD=1` no Android antes de abrir a NativeActivity. Isso escolhe o rasterizador GS por software em lugar do backend GPU de desktop OpenGL 4.6/fragment-interlock. É uma tentativa de aumentar a chance de mostrar o jogo no boot; o desempenho e a saída gráfica real precisam de teste no aparelho. Um renderer GLES/Vulkan otimizado continua pendente.

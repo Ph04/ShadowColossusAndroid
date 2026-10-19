@@ -26,6 +26,8 @@ PATTERNS = (
     ("Windows APIs", re.compile(r"#\s*include\s*[<\"]windows\.h[>\"]|GetModuleFileNameW|SetPriorityClass|_putenv_s|CaptureStackBackTrace")),
     ("MSVC-specific build flags", re.compile(r"/arch:AVX2|/bigobj|/d2OptimizeHugeFunctions|MSVC")),
     ("Windows-only generation assumptions", re.compile(r"ps2_recomp\.exe|vu1_recomp\.exe|build\.bat")),
+    ("Desktop OpenGL 4.6 / GLSL requirement", re.compile(r"#version\\s+460\\s+core|kContextMajorVersion,\\s*4,\\s*kContextMinorVersion,\\s*6")),
+    ("Compute shaders and shader-storage buffers", re.compile(r"DispatchCompute|kComputeShader|kShaderStorageBuffer|BufferStorage")),
     ("OpenGL fragment-interlock requirement", re.compile(r"GL_ARB_fragment_shader_interlock|GL_INTEL_fragment_shader_ordering|GL_EXT_fragment_shader_interlock")),
     ("x86 SIMD intrinsics", re.compile(r"#\s*include\s*[<\"](?:immintrin|xmmintrin|emmintrin)\.h[>\"]|_mm256_|_mm_storeu_ps|_mm_loadu_ps")),
 )
@@ -95,7 +97,9 @@ def main() -> int:
         "Windows APIs": "The host layer contains Windows-specific API calls that need Android/POSIX alternatives or compile-time guards.",
         "MSVC-specific build flags": "Build settings need compiler/platform-specific CMake branches; MSVC options cannot be passed to Clang/NDK.",
         "Windows-only generation assumptions": "The code-generation helper assumes Windows executable names or batch files; host-tool generation needs a Linux-compatible path for CI.",
-        "OpenGL fragment-interlock requirement": "The GS renderer has fragment-ordering/interlock paths that must be audited against Android Vulkan/GLES capability and correctness.",
+        "Desktop OpenGL 4.6 / GLSL requirement": "The current accelerated GS renderer requests desktop OpenGL 4.6/GLSL 460. Android devices normally expose GLES or Vulkan, so this renderer path is not treated as mobile-compatible.",
+        "Compute shaders and shader-storage buffers": "The GS GPU backend relies on compute shaders, SSBOs, barriers and persistent buffer mapping. A renderer-port project must validate feature level and correctness, not merely compile the source.",
+        "OpenGL fragment-interlock requirement": "The optional hardware GS rasterizer requires fragment interlock, which is not a portable guarantee on Android GPUs. The Android launch bridge now defaults to the CPU GS renderer until an accelerated mobile implementation is proven.",
         "x86 SIMD intrinsics": "x86 SIMD code needs equivalent AArch64 NEON or portable code paths before ARM64 can compile.",
     }
     for label, _ in PATTERNS:
@@ -122,7 +126,8 @@ def main() -> int:
         "",
         "- Android launcher/APK shell can be built separately from the game runtime.",
         "- This report inventories source-level blockers to guide the port; it is not proof that the native engine works on Android.",
-        "- The actual-game milestone requires ARM64 compilation of the generated EE/VU code, an Android platform/input/audio layer, and a correct Android-capable GS renderer, followed by real gameplay tests on device.",
+        "- The launch bridge selects the CPU GS rasterizer on Android to avoid creating the desktop-only GL 4.6/interlock backend. This is a compatibility fallback, not a performance promise.",
+        "- The actual-game milestone requires ARM64 compilation of generated EE/VU code, a validated Android presentation/input/audio path, and real gameplay tests on device; a GLES/Vulkan-accelerated GS backend remains future work."
         "",
     ]
 

@@ -39,6 +39,10 @@ APK: `app/build/outputs/apk/debug/app-debug.apk`.
 
 Com os submódulos recursivos, Python 3.10+, CMake, compilador C/C++, Android SDK/NDK e Gradle configurados, execute `python scripts/prepare_sotc_android.py --iso CAMINHO/SCES-53326.iso --jobs 1`. O script gera o código recompilado no computador e compila o APK debug. Requisitos e diagnósticos: [docs/ANDROID_BUILD_FROM_ISO.md](docs/ANDROID_BUILD_FROM_ISO.md). A ISO e `Port/generated/` permanecem locais.
 
+## Renderer Android
+
+O port PC usa um renderer GS acelerado que exige OpenGL desktop 4.6, compute shaders/SSBOs e, em um dos caminhos, fragment-interlock. Para evitar esse caminho incompatível na inicialização Android, o launcher força temporariamente o GS por software. É um fallback para testar boot, não uma garantia de desempenho: ainda precisamos medir no aparelho e implementar renderer acelerado GLES/Vulkan.
+
 ## Etapas críticas restantes
 
 1. Tornar o gerador de código recompilado do upstream compatível com host Linux/Clang.

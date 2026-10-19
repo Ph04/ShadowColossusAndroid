@@ -7,8 +7,8 @@
 #if defined(SOTC_GAME_ENGINE_AVAILABLE)
 namespace {
 constexpr char kStatus[] =
-    "Fontes do port de Shadow of the Colossus ligadas ao runner Android. "
-    "A compatibilidade do renderer GS e o gameplay ainda precisam de teste real.";
+    "Fontes do jogo ligadas ao runner Android. O Android usa GS por software como fallback "
+    "para evitar o renderer OpenGL 4.6 do desktop; desempenho e gameplay ainda precisam de teste real.";
 }
 #else
 namespace {
@@ -56,12 +56,17 @@ Java_dev_mobile_sotcandroid_MainActivity_nativeSetIsoPath(JNIEnv* env, jobject /
 
     // NativeActivity runs in this app's process. Set writable private paths before it starts.
     const int isoResult = setenv("SOTC_ISO", isoPath.c_str(), 1);
+    // The current GS GPU backend requires desktop GL 4.6 compute shaders and
+    // ARB_fragment_shader_interlock. Keep Android on the known software GS
+    // rasterizer until an accelerated mobile backend is implemented and tested.
+    const int rendererResult = setenv("PS2X_GS_GPU", "0", 1);
+    const int workerResult = setenv("PS2X_GS_THREAD", "1", 1);
     const std::string shaderCache = (appFilesDir / "game_data" / "gs_shaders").string();
-    if (isoResult == 0) {
+    if (isoResult == 0 && rendererResult == 0 && workerResult == 0) {
         setenv("PS2X_GS_SHADER_CACHE_DIR", shaderCache.c_str(), 0);
         setenv("PS2X_VU1_TIMING", "0", 0);
     }
 
     env->ReleaseStringUTFChars(path, chars);
-    return isoResult == 0 ? JNI_TRUE : JNI_FALSE;
+    return isoResult == 0 && rendererResult == 0 && workerResult == 0 ? JNI_TRUE : JNI_FALSE;
 }

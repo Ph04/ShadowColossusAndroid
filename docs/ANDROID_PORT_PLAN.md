@@ -31,7 +31,8 @@ O Dragon Rage demonstra uma estratégia prática: aplicação Android separada, 
 
 - [ ] Inventariar o uso de OpenGL 4.6, `GL_ARB_fragment_shader_interlock`, compute shaders, sincronização e shaders existentes.
 - [ ] Prototipar um contexto Vulkan Android e desenhar um plano de tradução das operações GS para recursos portáveis.
-- [ ] Manter um caminho de fallback apenas quando houver implementação correta; não selecionar OpenGL ES por nome sem verificar extensões e comportamento.
+- [x] Selecionar GS por software em Android como fallback para evitar o backend desktop OpenGL 4.6/fragment-interlock. Ainda precisa de teste de imagem/desempenho.
+- [ ] Implementar um caminho GS acelerado para GLES/Vulkan com verificações de capacidades; não presumir compatibilidade por nome de API.
 - [ ] Integrar áudio e validar precisão de ordenação/temporização.
 - [ ] Testar em GPU Mali primeiro no aparelho-alvo, depois ampliar a matriz de dispositivos.
 
