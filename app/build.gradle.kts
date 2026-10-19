@@ -21,6 +21,11 @@ android {
 
         externalNativeBuild {
             cmake {
+                cppFlags += listOf(
+                    "-ffp-contract=off",
+                    "-fno-strict-aliasing",
+                    "-fwrapv",
+                )
                 arguments += listOf(
                     "-DPS2X_BUILD_RECOMP=OFF",
                     "-DPS2X_BUILD_RUNTIME=ON",
@@ -48,6 +53,15 @@ android {
             // Sign local sideload builds with the standard debug keystore.
             // This is for device testing, not for Play Store publication.
             signingConfig = signingConfigs.getByName("debug")
+        }
+        create("diagnostic") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".diagnostic"
+            versionNameSuffix = "-diagnostic"
+            isDebuggable = true
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("debug")
         }
     }
 

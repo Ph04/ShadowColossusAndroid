@@ -30,6 +30,7 @@ class MainActivity : ComponentActivity() {
     private external fun nativeRuntimeStatus(): String
     private external fun nativeEngineAvailable(): Boolean
     private external fun nativeSetIsoPath(path: String): Boolean
+    private external fun nativeDiagnosticReport(): String
 
     private lateinit var isoStatus: TextView
     private lateinit var runtimeStatus: TextView
@@ -62,7 +63,7 @@ class MainActivity : ComponentActivity() {
         }, matchWidthWrap())
 
         content.addView(TextView(this).apply {
-            text = "PRÉVIA 0.2 · ANDROID ARM64"
+            text = "PRÉVIA 0.3 · ${if (packageName.endsWith(".diagnostic")) "DIAGNÓSTICO" else "ANDROID ARM64"}"
             textSize = 12f
             gravity = Gravity.CENTER
             setPadding(0, dp(8), 0, dp(20))
@@ -120,8 +121,17 @@ class MainActivity : ComponentActivity() {
         content.addView(runtimeCard, matchWidthWrap().apply { topMargin = dp(24) })
 
         content.addView(Button(this).apply {
-            text = "Compartilhar diagnóstico"
-            setOnClickListener { shareBootLog() }
+            text = "Gerar e compartilhar diagnóstico completo"
+            setOnClickListener {
+                DiagnosticLogger.shareReport(
+                    activity = this@MainActivity,
+                    isoFile = isoFile,
+                    expectedIsoBytes = EXPECTED_ISO_BYTES,
+                    runtimeStatus = { nativeRuntimeStatus() },
+                    engineAvailable = { nativeEngineAvailable() },
+                    nativeBuildReport = { nativeDiagnosticReport() },
+                )
+            }
         }, matchWidthWrap().apply { topMargin = dp(12) })
 
         content.addView(TextView(this).apply {
@@ -131,6 +141,7 @@ class MainActivity : ComponentActivity() {
         }, matchWidthWrap())
 
         setContentView(scroll)
+        DiagnosticLogger.event(this, "app_start", "package=$packageName; version=${packageManager.getPackageInfo(packageName, 0).versionName}; android=${android.os.Build.VERSION.RELEASE}; model=${android.os.Build.MANUFACTURER}/${android.os.Build.MODEL}")
         refreshIsoStatus()
         refreshRuntimeStatus()
         refreshLaunchButton()
@@ -145,6 +156,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun importIso(uri: android.net.Uri) {
+        DiagnosticLogger.event(this, "iso_import_started", "uri_scheme=${uri.scheme ?: "unknown"}")
         importButton.isEnabled = false
         playButton.isEnabled = false
         progressBar.progress = 0
@@ -160,6 +172,7 @@ class MainActivity : ComponentActivity() {
                 }
                 val stat = StatFs(filesDir.absolutePath)
                 val requiredSpace = EXPECTED_ISO_BYTES + 128L * 1024 * 1024
+                DiagnosticLogger.event(this, "iso_space_check", "available_bytes=${stat.availableBytes}; required_bytes=$requiredSpace")
                 if (stat.availableBytes < requiredSpace) {
                     throw IOException("Espaço insuficiente. Libere pelo menos 4,76 GB no armazenamento interno do aplicativo.")
                 }
@@ -185,6 +198,7 @@ class MainActivity : ComponentActivity() {
 
                             if (total - lastReported >= PROGRESS_STEP_BYTES) {
                                 lastReported = total
+                                DiagnosticLogger.event(this@MainActivity, "iso_copy_progress", "bytes=$total; expected_bytes=$EXPECTED_ISO_BYTES")
                                 val progress = (total * 1000L / EXPECTED_ISO_BYTES).toInt().coerceIn(0, 1000)
                                 runOnUiThread {
                                     progressBar.isIndeterminate = false
@@ -201,6 +215,7 @@ class MainActivity : ComponentActivity() {
                     throw IOException("Tamanho incorreto: ${total} bytes; esperado ${EXPECTED_ISO_BYTES} bytes.")
                 }
 
+                DiagnosticLogger.event(this, "iso_copy_size_valid", "copied_bytes=$total")
                 val destination = isoFile
                 if (destination.exists() && !destination.delete()) {
                     throw IOException("Não foi possível substituir a ISO anterior.")
@@ -209,6 +224,7 @@ class MainActivity : ComponentActivity() {
                     throw IOException("A cópia terminou, mas não foi possível finalizar a importação.")
                 }
 
+                DiagnosticLogger.event(this, "iso_import_completed", "relative_path=game/SCES-53326.iso; bytes=$total")
                 runOnUiThread {
                     progressBar.isIndeterminate = false
                     progressBar.progress = 1000
@@ -218,6 +234,7 @@ class MainActivity : ComponentActivity() {
                     refreshLaunchButton()
                 }
             } catch (error: Exception) {
+                DiagnosticLogger.event(this, "iso_import_failed", "type=${error.javaClass.name}; message=${error.message ?: "no-message"}")
                 partial.delete()
                 runOnUiThread {
                     progressBar.isIndeterminate = false
@@ -230,29 +247,10 @@ class MainActivity : ComponentActivity() {
         }.start()
     }
 
-    private fun shareBootLog() {
-        val logFile = File(File(filesDir, "logs"), "sotc-boot.log")
-        if (!logFile.isFile || logFile.length() == 0L) {
-            Toast.makeText(this, "Ainda não há log de inicialização. Ele é criado quando a engine nativa tenta abrir o jogo.", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        val logText = try {
-            logFile.readText(Charsets.UTF_8).takeLast(120_000)
-        } catch (error: Exception) {
-            Toast.makeText(this, "Não foi possível ler o log: ${error.message ?: "erro desconhecido"}", Toast.LENGTH_LONG).show()
-            return
-        }
-        val send = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, "Shadow of the Colossus Android — diagnóstico")
-            putExtra(Intent.EXTRA_TEXT, logText)
-        }
-        startActivity(Intent.createChooser(send, "Compartilhar diagnóstico"))
-    }
-
     private fun refreshIsoStatus() {
-        isoStatus.text = if (isoFile.isFile && isoFile.length() == EXPECTED_ISO_BYTES) {
+        val matchesSize = isoFile.isFile && isoFile.length() == EXPECTED_ISO_BYTES
+        DiagnosticLogger.event(this, "iso_status", "exists=${isoFile.isFile}; bytes=${if (isoFile.isFile) isoFile.length() else 0L}; exact_size_match=$matchesSize; content_hashes=not_checked")
+        isoStatus.text = if (matchesSize) {
             "Imagem presente no armazenamento privado (${formatGiB(isoFile.length())} GiB). O runtime verificará boot ELF e módulos antes de executar."
         } else {
             "Nenhuma imagem com o tamanho esperado foi importada."
@@ -261,8 +259,9 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshRuntimeStatus() {
         runtimeStatus.text = try {
-            nativeRuntimeStatus()
+            nativeRuntimeStatus().also { DiagnosticLogger.event(this, "native_runtime_status", it) }
         } catch (error: UnsatisfiedLinkError) {
+            DiagnosticLogger.event(this, "native_bridge_error", "type=${error.javaClass.name}; message=${error.message ?: "no-message"}")
             "Falha ao carregar biblioteca nativa: ${error.message ?: "erro desconhecido"}"
         }
     }
@@ -271,6 +270,7 @@ class MainActivity : ComponentActivity() {
         val hasIso = isoFile.isFile && isoFile.length() == EXPECTED_ISO_BYTES
         val hasEngine = try { nativeEngineAvailable() } catch (_: UnsatisfiedLinkError) { false }
         playButton.isEnabled = hasIso && hasEngine
+        DiagnosticLogger.event(this, "launch_preflight", "iso_size_ok=$hasIso; native_engine_available=$hasEngine; enabled=${playButton.isEnabled}")
         playButton.text = when {
             !hasIso -> "Importe a ISO para continuar"
             !hasEngine -> "Jogo indisponível — fontes recompiladas pendentes"
@@ -279,19 +279,29 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun launchGame() {
+        DiagnosticLogger.event(this, "launch_requested", "iso_exists=${isoFile.isFile}; iso_bytes=${if (isoFile.isFile) isoFile.length() else 0L}")
         if (!isoFile.isFile || isoFile.length() != EXPECTED_ISO_BYTES) {
+            DiagnosticLogger.event(this, "launch_blocked", "reason=iso_missing_or_wrong_size")
             refreshLaunchButton()
             return
         }
         if (!nativeEngineAvailable()) {
+            DiagnosticLogger.event(this, "launch_blocked", "reason=game_engine_not_linked_into_apk")
             Toast.makeText(this, "A engine do jogo ainda não foi compilada com as fontes geradas da sua ISO.", Toast.LENGTH_LONG).show()
             return
         }
         if (!nativeSetIsoPath(isoFile.absolutePath)) {
+            DiagnosticLogger.event(this, "launch_blocked", "reason=native_set_iso_path_failed")
             Toast.makeText(this, "Não foi possível encaminhar a ISO à engine nativa.", Toast.LENGTH_LONG).show()
             return
         }
-        startActivity(Intent(this, GameActivity::class.java))
+        DiagnosticLogger.event(this, "launch_activity_starting", "activity=GameActivity")
+        try {
+            startActivity(Intent(this, GameActivity::class.java))
+        } catch (error: Exception) {
+            DiagnosticLogger.event(this, "launch_activity_failed", "type=${error.javaClass.name}; message=${error.message ?: "no-message"}")
+            throw error
+        }
     }
 
     private fun formatGiB(bytes: Long): String = String.format("%.2f", bytes / (1024.0 * 1024.0 * 1024.0))

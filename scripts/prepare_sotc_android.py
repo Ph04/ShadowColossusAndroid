@@ -250,9 +250,13 @@ def build_android_apk(project_root: Path, build_type: str) -> Path:
     gradle = shutil.which("gradle") or shutil.which("gradle.bat")
     if not gradle:
         raise BuildError("Gradle não foi encontrado no PATH. Instale Gradle 8.9 ou use Android Studio.")
-    task = ":app:assembleDebug" if build_type == "debug" else ":app:assembleRelease"
-    run([gradle, "--no-daemon", "--max-workers=1", "--stacktrace", task], cwd=project_root)
-    apk_name = "app-debug.apk" if build_type == "debug" else "app-release.apk"
+    task_by_type = {
+        "debug": ":app:assembleDebug",
+        "release": ":app:assembleRelease",
+        "diagnostic": ":app:assembleDiagnostic",
+    }
+    run([gradle, "--no-daemon", "--max-workers=1", "--stacktrace", task_by_type[build_type]], cwd=project_root)
+    apk_name = {"debug": "app-debug.apk", "release": "app-release.apk", "diagnostic": "app-diagnostic.apk"}[build_type]
     apk = project_root / "app" / "build" / "outputs" / "apk" / build_type / apk_name
     if not apk.is_file():
         candidates = list((project_root / "app" / "build" / "outputs" / "apk" / build_type).glob("*.apk"))
@@ -288,7 +292,7 @@ def main() -> int:
         "--codegen-only", action="store_true",
         help="gera e valida as fontes locais, mas não executa o build Gradle do APK",
     )
-    parser.add_argument("--build-type", choices=("debug", "release"), default="release", help="build Release otimizada por padrão; use debug para diagnóstico")
+    parser.add_argument("--build-type", choices=("debug", "release", "diagnostic"), default="release", help="tipo de APK; diagnostic coleta relatórios adicionais no app")
     parser.add_argument(
         "--check-source-tree", action="store_true",
         help="valida os arquivos/submódulos necessários sem exigir ISO nem executar geração",

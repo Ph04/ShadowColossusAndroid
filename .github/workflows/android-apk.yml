@@ -29,7 +29,8 @@ jobs:
 
       - name: Validate local ISO code-generation helper
         run: |
-          python3 -m py_compile scripts/prepare_sotc_android.py scripts/patch_ps2recomp_android_input.py scripts/patch_sotc_android_main.py
+          python3 -m py_compile scripts/prepare_sotc_android.py scripts/diagnostic_build.py scripts/patch_ps2recomp_android_input.py scripts/patch_sotc_android_main.py
+          python3 scripts/diagnostic_build.py --help >/dev/null
           python3 scripts/patch_ps2recomp_android_input.py --self-test
           python3 scripts/patch_sotc_android_main.py --self-test
           python3 scripts/prepare_sotc_android.py --check-source-tree --upstream upstream/sotc-vibe-pc
@@ -76,19 +77,19 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build debug and optimized release APKs
-        run: gradle --no-daemon --max-workers=1 --stacktrace :app:assembleDebug :app:assembleRelease
+      - name: Build diagnostic, debug and optimized release APKs
+        run: gradle --no-daemon --max-workers=1 --stacktrace :app:assembleDebug :app:assembleDiagnostic :app:assembleRelease
 
       - name: Verify packaged native libraries
         shell: bash
         run: |
           set -eu
-          for APK in app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release.apk; do
+          for APK in app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/diagnostic/app-diagnostic.apk app/build/outputs/apk/release/app-release.apk; do
             test -f "$APK"
             unzip -l "$APK" | grep -q 'lib/arm64-v8a/libsotc_android_touch.so'
             unzip -l "$APK" | grep -q 'lib/arm64-v8a/libps2EntryRunner.so'
           done
-          echo "Debug and optimized release APKs both contain touch input and NativeActivity runtime libraries."
+          echo "Debug, diagnostic and release APKs all contain touch input and NativeActivity runtime libraries."
 
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
@@ -103,5 +104,13 @@ jobs:
         with:
           name: ShadowColossusAndroid-release-apk
           path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload diagnostic APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShadowColossusAndroid-diagnostic-apk
+          path: app/build/outputs/apk/diagnostic/app-diagnostic.apk
           if-no-files-found: error
           retention-days: 14
