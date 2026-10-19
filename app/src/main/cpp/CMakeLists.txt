@@ -98,8 +98,18 @@ if(EXISTS "${SOTC_GENERATED}/register_functions.cpp" AND
     )
 
     # Replace the generic runner entry point with the game-specific boot path.
-    set(SOTC_GENERIC_MAIN "${SOTC_PS2RECOMP}/ps2xRuntime/src/main.cpp")
-    file(TO_CMAKE_PATH "${SOTC_GENERIC_MAIN}" SOTC_GENERIC_MAIN_NORMALIZED)
+    # PS2Recomp prefers src/runner/main.cpp when present and only falls
+    # back to src/main.cpp on older revisions. Remove both variants so the
+    # Android shared library has exactly the SOTC boot entry point.
+    set(SOTC_GENERIC_MAIN_SOURCES
+        "${SOTC_PS2RECOMP}/ps2xRuntime/src/runner/main.cpp"
+        "${SOTC_PS2RECOMP}/ps2xRuntime/src/main.cpp"
+    )
+    set(SOTC_GENERIC_MAIN_NORMALIZED_LIST)
+    foreach(SOTC_GENERIC_MAIN IN LISTS SOTC_GENERIC_MAIN_SOURCES)
+        file(TO_CMAKE_PATH "${SOTC_GENERIC_MAIN}" SOTC_GENERIC_MAIN_NORMALIZED)
+        list(APPEND SOTC_GENERIC_MAIN_NORMALIZED_LIST "${SOTC_GENERIC_MAIN_NORMALIZED}")
+    endforeach()
     get_target_property(SOTC_RUNNER_SOURCES ps2EntryRunner SOURCES)
     set(SOTC_RUNNER_SOURCES_FILTERED)
     foreach(SOTC_SOURCE IN LISTS SOTC_RUNNER_SOURCES)
@@ -112,8 +122,14 @@ if(EXISTS "${SOTC_GENERATED}/register_functions.cpp" AND
             endif()
         endif()
         file(TO_CMAKE_PATH "${SOTC_SOURCE_NORMALIZED}" SOTC_SOURCE_NORMALIZED)
-        if(NOT SOTC_SOURCE_NORMALIZED STREQUAL SOTC_GENERIC_MAIN_NORMALIZED
-           AND NOT SOTC_SOURCE MATCHES "(^|/)ps2xRuntime/src/main\\.cpp$")
+        set(SOTC_IS_GENERIC_MAIN OFF)
+        foreach(SOTC_GENERIC_MAIN_NORMALIZED IN LISTS SOTC_GENERIC_MAIN_NORMALIZED_LIST)
+            if(SOTC_SOURCE_NORMALIZED STREQUAL SOTC_GENERIC_MAIN_NORMALIZED)
+                set(SOTC_IS_GENERIC_MAIN ON)
+            endif()
+        endforeach()
+        if(NOT SOTC_IS_GENERIC_MAIN
+           AND NOT SOTC_SOURCE MATCHES "(^|/)ps2xRuntime/src/(runner/)?main\\.cpp$")
             list(APPEND SOTC_RUNNER_SOURCES_FILTERED "${SOTC_SOURCE}")
         endif()
     endforeach()
