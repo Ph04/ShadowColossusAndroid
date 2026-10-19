@@ -43,9 +43,23 @@ gradle --no-daemon :app:assembleDebug
 
 APK: `app/build/outputs/apk/debug/app-debug.apk`.
 
-## Gerar o código local e compilar o APK
+## Modelo escolhido: motor pré-compilado como no Budokai
 
-Com os submódulos recursivos, Python 3.10+, CMake, compilador C/C++, Android SDK/NDK e Gradle configurados, execute `python scripts/prepare_sotc_android.py --iso CAMINHO/SCES-53326.iso --jobs 1`. O script gera o código recompilado no computador e compila por padrão o APK Release otimizado. Para depurar um erro de compilação, informe também `--build-type debug`. Requisitos e diagnósticos: [docs/ANDROID_BUILD_FROM_ISO.md](docs/ANDROID_BUILD_FROM_ISO.md). A ISO e `Port/generated/` permanecem locais.
+No telefone **não recompilamos a ISO**. A engine ARM64 específica do jogo precisa ser gerada e compilada antes da montagem do APK. Depois de instalar esse APK, o launcher importa a ISO do usuário e entrega seu caminho ao motor nativo. O código C++ gerado a partir da ISO não é incluído no Git.
+
+O Tenkaichi3DecompAndroid consegue compilar um motor a partir dos fontes decompilados já presentes no repositório. Neste projeto, a geração de fontes específicas ainda depende do PS2Recomp e da ISO PAL SCES-53326 v1.00; por isso, a build automática da CI (que não possui uma ISO de usuário) é apenas uma **build de estrutura/teste e não inicia o jogo**.
+
+## Gerar a engine pré-compilada e o APK no computador
+
+Com os submódulos recursivos, Python 3.10+, JDK 17, Android SDK API 35, Android NDK `28.2.13676358`, CMake `3.22.1` e Gradle `8.9` configurados, execute:
+
+```sh
+python scripts/prepare_sotc_android.py --iso CAMINHO/SCES-53326.iso --jobs 1 --build-type release
+```
+
+Esse comando verifica a ISO, gera o código com PS2Recomp e monta um APK que inclui as fontes geradas na engine ARM64. O APK final está em `app/build/outputs/apk/release/app-release.apk`. Para o primeiro teste, pode-se adicionar `--skip-vu1`, aceitando possível redução de desempenho. Para coletar diagnóstico use `--build-type diagnostic`. A ISO e `Port/generated/` permanecem locais; não faça commit nem envie esses dados ao GitHub.
+
+Mais detalhes: [docs/ON_DEVICE_RECOMPILATION.md](docs/ON_DEVICE_RECOMPILATION.md) e [docs/DIAGNOSTIC_BUILD.md](docs/DIAGNOSTIC_BUILD.md).
 
 ## Controles touch-screen
 

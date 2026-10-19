@@ -106,7 +106,7 @@ Java_dev_mobile_sotcandroid_MainActivity_nativeDiagnosticReport(JNIEnv* env, job
     report += "play_gate=blocked_because_generated_sources_were_not_linked\n";
 #endif
     report += "renderer_policy=software_gs_fallback_on_android\n";
-    report += "iso_integrity=not_validated_by_launcher_size_only\n";
+    report += "iso_integrity=not_checked_by_native_bridge; launcher currently checks file size only\n";
     __android_log_print(ANDROID_LOG_INFO, "SOTC_DIAG", "native diagnostic report requested");
     return env->NewStringUTF(report.c_str());
 }

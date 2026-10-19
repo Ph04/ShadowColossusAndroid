@@ -1,38 +1,42 @@
-# Recompilação no Android: referência e estado
+# Modelo de motor pré-compilado (arquitetura tipo Budokai)
 
-## O que o Tenkaichi3DecompAndroid faz
+## Decisão
 
-No Tenkaichi3DecompAndroid, o código decompilado do jogo já faz parte dos arquivos-fonte do projeto. O script `port/tools/android.py` é uma ferramenta de desenvolvimento: transforma e compila esses fontes para a biblioteca ARM64 antes de o APK ser montado. O README descreve que, no aparelho, a aplicação lê a ISO do usuário, verifica a edição e copia os dados para a estrutura esperada pelo motor.
+O ShadowColossusAndroid seguirá o modelo de execução do Tenkaichi3DecompAndroid: **o motor ARM64 deve ser compilado antes de instalar o APK**. O telefone não compilará milhares de arquivos C++ durante a importação ou primeira inicialização. No aparelho, o launcher copia a ISO para o armazenamento privado e o motor nativo a lê em tempo de execução.
 
-Portanto, esse projeto é uma referência útil para a arquitetura Android nativa, o tratamento privado da ISO e a interface de importação, mas não prova que uma ISO de PS2 pode ser recompilada inteira em tempo de execução pelo launcher.
+A semelhança é arquitetural, não uma igualdade da cadeia de desenvolvimento. O Tenkaichi3DecompAndroid tem o código decompilado do jogo presente nos fontes. Neste projeto, os fontes específicos ainda são gerados pelo PS2Recomp a partir da versão exata da ISO.
 
-## Por que o fluxo de Shadow of the Colossus é diferente
+## Cadeia de build deste projeto
 
-Neste repositório, a geração específica do jogo usa ferramentas do PS2Recomp e o linker do projeto upstream. O fluxo atual no computador é:
+1. Compilar as ferramentas host necessárias do PS2Recomp.
+2. Validar a ISO PAL SCES-53326 v1.00 por hashes dos módulos/ELF no linker upstream.
+3. Gerar os arquivos C++ específicos em `Port/generated/`.
+4. Verificar a cobertura das relocations e os cabeçalhos gerados.
+5. Compilar esses arquivos para ARM64 com Android NDK/CMake e ligá-los ao runner.
+6. Instalar no telefone o APK já construído; na execução, o aplicativo importa a ISO e chama a engine nativa.
 
-1. compilar as ferramentas host;
-2. analisar a ISO e validar o boot ELF/módulos;
-3. executar `ps2_recomp` para gerar fontes C++;
-4. opcionalmente gerar código VU1;
-5. verificar os pontos de relocação;
-6. compilar e ligar as fontes geradas ao runner Android por meio do NDK/Gradle.
+O fluxo local já é iniciado por `scripts/prepare_sotc_android.py`; a build da CI sem ISO não passa pelas etapas 2–5 e é apenas um scaffold de teste. A presença do runtime PS2Recomp, sozinha, não torna o APK jogável.
 
-A compilação Gradle dentro do APK atual constrói o runtime e as bibliotecas do launcher; ela não dispõe do gerador nem de um compilador C/C++ para compilar milhões de bytes de fontes durante o uso.
+## Comando para construir um APK com a engine incluída
 
-## Progresso visual atual
+Com submódulos recursivos, Python 3.10+, JDK 17, CMake, compilador host C/C++, Android SDK/NDK e Gradle configurados:
 
-A home contém a ação **Verificar requisitos da recompilação**. A barra e os estados refletem verificações reais: ISO e tamanho, espaço livre, ABI ARM64 e presença de componentes esperados. O resultado para antes da geração caso o gerador ou o compilador não esteja instalado/empacotado. A barra mede apenas o preflight, e o texto esclarece isso para não inventar porcentagem de compilação.
+```sh
+python scripts/prepare_sotc_android.py --iso "CAMINHO/SCES-53326.iso" --jobs 1 --build-type diagnostic --skip-vu1
+```
 
-O log de diagnóstico também grava eventos `codegen_preflight_progress` e `codegen_preflight_blocked` em `files/logs/sotc-app.log`.
+O `--skip-vu1` pula somente a geração estática opcional da VU1 e pode deixar o jogo mais lento. Remova-o para a compilação completa. Para a versão final, use `--build-type release`. O APK diagnóstico aparece em `app/build/outputs/apk/diagnostic/app-diagnostic.apk`.
 
-## Trabalho necessário para recompilar de verdade no aparelho
+As fontes geradas e a ISO continuam no computador de build e não devem ser adicionadas ao repositório. Depois de instalar o APK personalizado, importe a ISO correspondente no launcher. A versão do jogo ainda precisa ser testada no aparelho; gerar um APK com sucesso não comprova boot, renderização ou desempenho.
 
-Ainda são necessários, e precisam ser validados em ARM64/Android:
+## Estado da engine
 
-- adaptar o linker/analisador de ISO para operar no app sem Python de desktop;
-- expor o gerador PS2Recomp por uma API segura para o processo Android, com saída e erros capturados;
-- fornecer a toolchain/compilador/linker compatível com Android e definir como as fontes geradas serão compiladas e carregadas;
-- instrumentar cada etapa com eventos estruturados para uma barra de progresso real;
-- testar memória máxima, armazenamento temporário, cancelamento, recuperação após falha e instalação da biblioteca resultante.
+A UI distingue duas coisas independentes:
+- **Runtime PS2Recomp presente**: bibliotecas gerais e runner compilados.
+- **Engine específica do jogo presente**: fontes C++ geradas ligadas ao APK.
 
-Até que esses componentes existam, não se deve mostrar progresso de recompilação nem ativar o botão **Jogar**: completar somente a importação da ISO não torna o APK jogável.
+Quando a engine específica está ausente, o botão Jogar permanece bloqueado. Não há uma barra de “recompilação no celular”, porque a geração e compilação acontecem antes de empacotar o aplicativo. A importação atual verifica o tamanho da ISO; a validação criptográfica de versão continua sendo realizada pelo linker/runtime upstream quando seus checks de ELF e módulos forem executados.
+
+## Por que a CI não entrega o jogo pronto
+
+Os runners públicos não têm acesso a uma ISO de jogo fornecida pelo usuário e não devem receber nem publicar arquivos derivados da imagem. A CI verifica se o runtime, o launcher e as bibliotecas compilam. Um APK jogável precisa ser gerado no ambiente de build após a geração local dos fontes específicos e ainda exige testes reais de execução.

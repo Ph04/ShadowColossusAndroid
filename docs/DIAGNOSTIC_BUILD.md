@@ -18,7 +18,7 @@ O APK personalizado aparecerá em app/build/outputs/apk/diagnostic/app-diagnosti
 
 ## 2. Testar o APK de diagnóstico no telefone
 
-A CI também gera um APK de diagnóstico, mas ele **não inclui código recompilado do jogo** porque a ISO não está disponível na CI. Para investigar o boot do jogo de verdade, use o APK diagnóstico produzido no PC depois que a geração local tiver sucesso.
+A CI também gera um APK de scaffold para diagnóstico, mas ele **não inclui a engine específica do jogo** porque a ISO não está disponível na CI. Para investigar o boot do jogo de verdade, use o APK diagnóstico produzido no PC depois que a geração local tiver sucesso.
 
 Instale-o, importe a ISO novamente e toque em **Gerar e compartilhar diagnóstico completo**. O relatório inclui:
 - modelo do aparelho, Android, ABI, memória e espaço livre;
@@ -37,4 +37,4 @@ Revise os caminhos locais e os detalhes do aparelho antes de compartilhar. Não 
 
 ## Limite importante
 
-A build de diagnóstico melhora a coleta de evidências; ela não corrige automaticamente uma falha da ferramenta ou do renderizador. O APK da CI pode mostrar que as bibliotecas e o launcher estão presentes, mas somente um APK construído depois da geração local poderá confirmar se o código recompilado do jogo está integrado.
+A build de diagnóstico melhora a coleta de evidências; ela não corrige automaticamente uma falha da ferramenta ou do renderizador. O APK da CI é apenas um scaffold de teste, não um jogo pronto. Somente um APK construído depois da geração local poderá confirmar se a engine pré-compilada está integrada; ainda será necessário testar boot e renderização no aparelho.

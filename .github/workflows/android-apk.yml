@@ -77,7 +77,7 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build diagnostic, debug and optimized release APKs
+      - name: Build diagnostic, debug and optimized release scaffold APKs (game code absent in CI)
         run: gradle --no-daemon --max-workers=1 --stacktrace :app:assembleDebug :app:assembleDiagnostic :app:assembleRelease
 
       - name: Verify packaged native libraries
@@ -89,28 +89,28 @@ jobs:
             unzip -l "$APK" | grep -q 'lib/arm64-v8a/libsotc_android_touch.so'
             unzip -l "$APK" | grep -q 'lib/arm64-v8a/libps2EntryRunner.so'
           done
-          echo "Debug, diagnostic and release APKs all contain touch input and NativeActivity runtime libraries."
+          echo "Scaffold APKs contain touch input and the PS2 runtime; they are not playable without locally generated game code."
 
-      - name: Upload debug APK artifact
+      - name: Upload debug scaffold APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ShadowColossusAndroid-debug-apk
+          name: ShadowColossusAndroid-debug-scaffold-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload optimized release APK artifact
+      - name: Upload optimized release scaffold APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ShadowColossusAndroid-release-apk
+          name: ShadowColossusAndroid-release-scaffold-apk
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload diagnostic APK
+      - name: Upload diagnostic scaffold APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShadowColossusAndroid-diagnostic-apk
+          name: ShadowColossusAndroid-diagnostic-scaffold-apk
           path: app/build/outputs/apk/diagnostic/app-diagnostic.apk
           if-no-files-found: error
           retention-days: 14
