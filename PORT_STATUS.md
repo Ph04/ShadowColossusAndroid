@@ -13,7 +13,8 @@
 - [x] CI configurada para construir o runtime ARM64 e o APK de diagnóstico; resultado do último commit disponível em [Actions](https://github.com/Ph04/ShadowColossusAndroid/actions).
 - [x] Overlay touch-screen com analógicos esquerdo/direito, botões PS2, múltiplos toques e controle de mostrar/ocultar.
 - [x] Biblioteca compartilhada de estado touch integrada ao polling do controle PS2 via hook Android aplicado ao checkout local do submódulo.
-- [x] Encaminhamento de stdout/stderr do entry point específico do jogo para Android logcat.
+- [x] Encaminhamento de stdout/stderr do entry point específico do jogo para Android logcat e para `files/logs/sotc-boot.log` no armazenamento privado.
+- [x] Botão no launcher para compartilhar o log de inicialização mais recente sem ADB.
 
 ## O que falta para rodar Shadow of the Colossus
 

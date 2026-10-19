@@ -41,7 +41,7 @@ Com os submódulos recursivos, Python 3.10+, CMake, compilador C/C++, Android SD
 
 ## Controles touch-screen
 
-A tela do jogo usa um overlay transparente com analógico esquerdo para movimento, analógico direito para câmera, botões PlayStation (△, ○, ×, □), L1/L2, R1/R2 e Start/Select. O botão **CONTROLES ON/OFF** oculta ou mostra o overlay. O overlay aceita múltiplos toques ao mesmo tempo; o estado de botões e eixos chega ao polling do controle PS2 por uma biblioteca nativa compartilhada. Essa integração está no código, mas precisa ser validada com o jogo realmente iniciado no aparelho.
+A tela do jogo usa um overlay transparente com analógico esquerdo para movimento, analógico direito para câmera, direcional, botões PlayStation (△, ○, ×, □), L1/L2, R1/R2, L3/R3 e Start/Select. O botão **CONTROLES ON/OFF** oculta ou mostra o overlay. O overlay aceita múltiplos toques ao mesmo tempo; o estado de botões e eixos chega ao polling do controle PS2 por uma biblioteca nativa compartilhada. A tela inicial também tem **Compartilhar diagnóstico**: após uma tentativa de boot, envia o log nativo do último início para ajudar a analisar uma tela preta ou erro. A integração ainda precisa ser validada com o jogo real no aparelho.
 
 ## Renderer Android
 

@@ -70,7 +70,7 @@ NAMESPACE_BLOCK = '''namespace
 
         g_sotcLogcatThread = std::thread([logPath]()
         {
-            std::ofstream logFile(logPath, std::ios::app);
+            std::ofstream logFile(logPath, std::ios::trunc);
             FILE *reader = fdopen(g_sotcLogcatPipe[0], "r");
             if (!reader)
             {

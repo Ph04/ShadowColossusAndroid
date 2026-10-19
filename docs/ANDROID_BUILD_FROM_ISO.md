@@ -29,7 +29,7 @@ Para uma tentativa inicial mais rápida, deixando VU1 no interpretador (potencia
 
     python3 scripts/prepare_sotc_android.py --iso "/caminho/SCES-53326.iso" --skip-vu1 --jobs 1
 
-O script não envia nem inclui a ISO, arquivos gerados, assets ou saves no GitHub. Não faça commit de **Port/generated/**. Durante o configure Android, o CMake aplica localmente pequenos patches idempotentes no checkout do submódulo: um injeta o estado do touch no polling do controle e outro mantém logs do entry point no logcat. Esses patches não alteram o commit upstream armazenado no repositório principal. Se o script falhar, preserve a mensagem de erro completa: um tamanho correto não substitui a validação dos hashes dos módulos.
+O script não envia nem inclui a ISO, arquivos gerados, assets ou saves no GitHub. Não faça commit de **Port/generated/**. Durante o configure Android, o CMake aplica localmente pequenos patches idempotentes no checkout do submódulo: um injeta o estado do touch no polling do controle e outro envia o stdout/stderr do entry point para logcat e para `files/logs/sotc-boot.log`. O launcher permite compartilhar esse último log pelo menu de compartilhamento do Android. Esses patches não alteram o commit upstream armazenado no repositório principal. Se o script falhar, preserve a mensagem de erro completa: um tamanho correto não substitui a validação dos hashes dos módulos.
 
 ## O que esse build ainda não garante
 

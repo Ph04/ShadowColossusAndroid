@@ -119,6 +119,11 @@ class MainActivity : ComponentActivity() {
         runtimeCard.addView(runtimeStatus, matchWidthWrap().apply { topMargin = dp(8) })
         content.addView(runtimeCard, matchWidthWrap().apply { topMargin = dp(24) })
 
+        content.addView(Button(this).apply {
+            text = "Compartilhar diagnóstico"
+            setOnClickListener { shareBootLog() }
+        }, matchWidthWrap().apply { topMargin = dp(12) })
+
         content.addView(TextView(this).apply {
             text = "O código recompilado do jogo é gerado a partir da sua própria ISO e não é distribuído pelo aplicativo."
             textSize = 13f
@@ -223,6 +228,27 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }.start()
+    }
+
+    private fun shareBootLog() {
+        val logFile = File(File(filesDir, "logs"), "sotc-boot.log")
+        if (!logFile.isFile || logFile.length() == 0L) {
+            Toast.makeText(this, "Ainda não há log de inicialização. Ele é criado quando a engine nativa tenta abrir o jogo.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val logText = try {
+            logFile.readText(Charsets.UTF_8).takeLast(120_000)
+        } catch (error: Exception) {
+            Toast.makeText(this, "Não foi possível ler o log: ${error.message ?: "erro desconhecido"}", Toast.LENGTH_LONG).show()
+            return
+        }
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, "Shadow of the Colossus Android — diagnóstico")
+            putExtra(Intent.EXTRA_TEXT, logText)
+        }
+        startActivity(Intent.createChooser(send, "Compartilhar diagnóstico"))
     }
 
     private fun refreshIsoStatus() {
