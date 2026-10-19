@@ -14,14 +14,14 @@ O Dragon Rage demonstra uma estratégia prática: aplicação Android separada, 
 
 - [x] Projeto Gradle mínimo.
 - [x] CI no GitHub Actions que compila APK `arm64-v8a` em cada push/PR e sob demanda.
-- [x] Biblioteca JNI nativa mínima para provar o fluxo Kotlin → código nativo.
+- [x] Biblioteca JNI nativa mínima para provar o fluxo Kotlin → código nativo.\n- [x] Integrar no CMake do APK o runtime Android ARM64 de PS2Recomp e o runner NativeActivity upstream.
 - [ ] Fixar versões exatas de cada dependência upstream e armazenar hashes.
 - [ ] Adicionar cache seguro para ferramenta/dependências sem armazenar dados do jogo.
 
 ### Fase B — código recompilado e runtime
 
 - [ ] Revisar licença e dependências de PS2Recomp.
-- [ ] Criar presets CMake Android/Clang específicos para `arm64-v8a`.
+- [x] Criar preset CMake Android/Clang usando o caminho ARM64/sse2neon que existe no PS2Recomp fixado.
 - [ ] Mapear as dependências de plataforma e as intrínsecas SSE/AVX2; implementar NEON ou caminhos portáveis preservando a semântica necessária.
 - [ ] Adaptar relógios, threading, sistema de arquivos, sinais, logs e prioridade das threads.
 - [ ] Definir um build host/tooling para gerar o código recompilado e, depois, compilar a biblioteca Android. Os geradores de Windows não devem ser assumidos portáveis.

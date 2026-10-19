@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "dev.mobile.sotcandroid"
-        minSdk = 26
+        minSdk = 28
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0-dev"
@@ -20,7 +20,19 @@ android {
 
         externalNativeBuild {
             cmake {
-                cppFlags += listOf("-std=c++17", "-Wall", "-Wextra")
+                arguments += listOf(
+                    "-DPS2X_BUILD_RECOMP=OFF",
+                    "-DPS2X_BUILD_RUNTIME=ON",
+                    "-DPS2X_BUILD_ANALYZER=OFF",
+                    "-DPS2X_BUILD_TEST=OFF",
+                    "-DPS2X_BUILD_STUDIO=OFF",
+                    "-DPS2X_ENABLE_FFMPEG=OFF",
+                    "-DPS2X_ENABLE_DEBUG_UI=OFF",
+                    "-DPS2X_ENABLE_SCCACHE=OFF",
+                    "-DPS2X_RUNNER_UNITY_BUILD_BATCH_SIZE=16",
+                    "-DANDROID_CPP_FEATURES=rtti exceptions",
+                )
+                targets += listOf("sotc_android_bridge", "ps2EntryRunner")
             }
         }
     }

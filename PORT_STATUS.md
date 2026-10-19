@@ -1,28 +1,29 @@
 # Estado do porte
 
-**Marco atual:** launcher Android e processo inicial de integração configurados; jogo ainda não jogável.
+**Marco atual:** integração do runtime Android de PS2Recomp em CI; ainda não jogável.
 
-## Já implementado neste repositório
+## Implementado no repositório
 
 - [x] Aplicativo Android Kotlin/Gradle com alvo `arm64-v8a`.
-- [x] Biblioteca C++ JNI mínima e diagnóstico exibido na tela.
-- [x] Seletor de arquivos Android para importar a imagem do jogo.
-- [x] Cópia para armazenamento privado com progresso e verificação de tamanho + SHA-256.
-- [x] Submódulo `upstream/sotc-vibe-pc` fixado no commit da tag `v0.1.0-preview.1`, incluindo submódulos recursivos no CI.
-- [x] GitHub Actions que prepara o SDK/NDK, compila o APK e publica o artefato.
-- [x] Auditoria automática do código upstream publicada separadamente como `Android-port-audit`.
-- [x] ISO, assets, arquivos gerados do jogo e saves excluídos do Git.
+- [x] Biblioteca JNI e diagnóstico no launcher.
+- [x] Seleção Android e importação da ISO para armazenamento privado, com barra de progresso e verificação de tamanho + SHA-256.
+- [x] Código upstream de PC fixado como submódulo no commit `v0.1.0-preview.1`, com submódulos recursivos.
+- [x] Auditoria estática automática dos bloqueios de porte, publicada como artefato da CI.
+- [x] CMake Android configurado para compilar `ps2_runtime` e o runner `ps2EntryRunner` do PS2Recomp, usando o caminho ARM64/Android upstream.
+- [x] CI configurada para construir o runtime ARM64 e o APK de diagnóstico; resultado do último commit disponível em [Actions](https://github.com/Ph04/ShadowColossusAndroid/actions).
 
-## Bloqueios antes de gameplay
+## O que falta para rodar Shadow of the Colossus
 
-1. O upstream não inclui `Port/generated/`; seus arquivos C++ são produzidos de uma ISO suportada.
-2. As ferramentas de geração atualmente assumem executáveis `.exe` e scripts `.bat`; é preciso tornar a geração executável no host Linux do CI.
-3. O runtime e o renderer ainda têm chamadas/flags de Windows/MSVC e caminhos x86 SIMD a adaptar para ARM64.
-4. O renderer GS depende de caminhos gráficos específicos e precisa de uma implementação Android correta; o launcher não deve declarar sucesso de jogo só por desenhar um frame.
-5. Ainda faltam a plataforma de áudio/entrada Android e os controles de toque integrados ao runtime.
+1. O upstream não distribui `Port/generated/`: o código C++ recompilado é produzido a partir da ISO suportada. Ele não está no APK nem no repositório.
+2. A geração do código ainda depende de caminhos Windows (`.exe` e `.bat`); criar e testar um fluxo de geração para Linux/Clang.
+3. Integrar as fontes específicas do jogo ao target nativo Android. O runner genérico compilado é somente infraestrutura, não executa o port de Shadow of the Colossus.
+4. Adaptar e validar o renderizador GS e seus shaders para os recursos gráficos disponíveis no Android; compilar o runtime não comprova que o renderer seja compatível.
+5. Integrar a ISO importada à engine, controles de toque, áudio, salvamentos e logs, depois validar boot e gameplay real.
 
-## Verificação
+## Como baixar builds e relatórios
 
-- Workflow: [Android APK](https://github.com/Ph04/ShadowColossusAndroid/actions/workflows/android-apk.yml)
-- Relatório da CI: artefato `Android-port-audit`
-- Critério de sucesso atual: APK de diagnóstico compila. Isso não significa que o motor do jogo funciona.
+- Abra **Actions** e selecione a última execução.
+- Baixe `ShadowColossusAndroid-debug-apk` para o APK de diagnóstico.
+- Baixe `Android-port-audit` para a auditoria do código upstream fixado.
+
+O APK de diagnóstico não é um jogo jogável até que o código recompilado, os recursos e o renderer do título sejam integrados.
