@@ -28,6 +28,20 @@ if(NOT SOTC_TOUCH_PATCH_RESULT EQUAL 0)
     message(FATAL_ERROR "Could not patch the pinned PS2Recomp host input source for Android touch controls.")
 endif()
 
+set(SOTC_ANDROID_MAIN_PATCH "${SOTC_REPOSITORY_ROOT}/scripts/patch_sotc_android_main.py")
+set(SOTC_PORT_MAIN "${SOTC_PORT}/src/main.cpp")
+if(NOT EXISTS "${SOTC_ANDROID_MAIN_PATCH}" OR NOT EXISTS "${SOTC_PORT_MAIN}")
+    message(FATAL_ERROR "Android boot logging patch prerequisites are missing.")
+endif()
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" "${SOTC_ANDROID_MAIN_PATCH}" --source "${SOTC_PORT_MAIN}"
+    RESULT_VARIABLE SOTC_MAIN_PATCH_RESULT
+    COMMAND_ECHO STDOUT
+)
+if(NOT SOTC_MAIN_PATCH_RESULT EQUAL 0)
+    message(FATAL_ERROR "Could not patch the SOTC entry point for Android logcat diagnostics.")
+endif()
+
 # This shared library stores touch state exactly once in the app process. Both
 # the Kotlin touch overlay and PS2Recomp's controller poller use this library.
 add_library(sotc_android_touch SHARED android_touch_input.cpp)
