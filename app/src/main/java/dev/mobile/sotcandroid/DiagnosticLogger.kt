@@ -166,3 +166,4 @@ object DiagnosticLogger {
 
     private fun timestamp(): String =
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US).format(Date())
+}
