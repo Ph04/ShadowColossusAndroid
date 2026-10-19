@@ -10,6 +10,31 @@ set(SOTC_PS2RECOMP "${SOTC_UPSTREAM}/External/PS2Recomp")
 set(SOTC_PORT "${SOTC_UPSTREAM}/Port")
 set(SOTC_GENERATED "${SOTC_PORT}/generated")
 
+# The upstream controller poller reads raylib keyboard/gamepad state. Apply a
+# small, idempotent Android-only hook so touch controls feed the same PS2 pad
+# state rather than synthesizing unreliable Android key events.
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set(SOTC_ANDROID_TOUCH_PATCH "${SOTC_REPOSITORY_ROOT}/scripts/patch_ps2recomp_android_input.py")
+set(SOTC_PS2_HOST_INPUT "${SOTC_PS2RECOMP}/ps2xRuntime/src/lib/ps2_host_input.cpp")
+if(NOT EXISTS "${SOTC_ANDROID_TOUCH_PATCH}" OR NOT EXISTS "${SOTC_PS2_HOST_INPUT}")
+    message(FATAL_ERROR "Android touch-input patch prerequisites are missing.")
+endif()
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" "${SOTC_ANDROID_TOUCH_PATCH}" --source "${SOTC_PS2_HOST_INPUT}"
+    RESULT_VARIABLE SOTC_TOUCH_PATCH_RESULT
+    COMMAND_ECHO STDOUT
+)
+if(NOT SOTC_TOUCH_PATCH_RESULT EQUAL 0)
+    message(FATAL_ERROR "Could not patch the pinned PS2Recomp host input source for Android touch controls.")
+endif()
+
+# This shared library stores touch state exactly once in the app process. Both
+# the Kotlin touch overlay and PS2Recomp's controller poller use this library.
+add_library(sotc_android_touch SHARED android_touch_input.cpp)
+target_include_directories(sotc_android_touch PUBLIC "${CMAKE_CURRENT_LIST_DIR}")
+target_compile_features(sotc_android_touch PRIVATE cxx_std_17)
+target_compile_options(sotc_android_touch PRIVATE -Wall -Wextra -Werror=return-type)
+
 if(NOT EXISTS "${SOTC_PS2RECOMP}/CMakeLists.txt")
     message(FATAL_ERROR "Pinned PS2Recomp submodule missing at ${SOTC_PS2RECOMP}; check out submodules recursively.")
 endif()
@@ -25,6 +50,11 @@ set(PS2X_ENABLE_SCCACHE OFF CACHE BOOL "" FORCE)
 set(PS2X_ENABLE_RUNNER_UNITY_BUILD ON CACHE BOOL "" FORCE)
 set(PS2X_RUNNER_UNITY_BUILD_BATCH_SIZE 16 CACHE STRING "" FORCE)
 add_subdirectory("${SOTC_PS2RECOMP}" "${CMAKE_CURRENT_BINARY_DIR}/ps2recomp")
+
+if(TARGET ps2_runtime)
+    target_include_directories(ps2_runtime BEFORE PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
+    target_link_libraries(ps2_runtime PUBLIC sotc_android_touch)
+endif()
 
 # Several runtime files include Intel intrinsic header names directly.
 # On AArch64 redirect these legacy names to the upstream sse2neon compatibility
