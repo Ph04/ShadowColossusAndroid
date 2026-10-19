@@ -25,6 +25,14 @@ Na tela inicial, selecione sua própria ISO PAL europeia `SCES-53326 v1.00`. O a
 
 A ISO, assets, fontes C++ geradas e saves são excluídos do Git.
 
+## Recompilação no próprio celular: estado atual
+
+A referência [Tenkaichi3DecompAndroid](https://github.com/dfdx047/Tenkaichi3DecompAndroid) não recompila a ISO dentro do app: o código decompilado já existe no repositório e o script `port/tools/android.py` compila o motor ARM64 durante o desenvolvimento. No aparelho, o launcher verifica a imagem e copia os dados do disco para a estrutura que o motor usa.
+
+O fluxo de Shadow of the Colossus é diferente: `ps2_recomp` gera arquivos C++ específicos a partir dos executáveis e módulos da ISO; em seguida, esses arquivos precisam ser compilados e ligados ao runtime Android. O APK atual contém o runtime, mas ainda **não inclui um gerador PS2Recomp executável no processo do app nem uma toolchain C/C++ para compilar as fontes durante a execução**.
+
+A tela inicial ganhou uma verificação visual por etapas. Ela mede o progresso **da verificação de pré-requisitos**, identifica a ISO, o espaço livre e a ABI ARM64 e informa a ausência das ferramentas. Os 100% dessa verificação não significam que o jogo foi recompilado. O fluxo real de geração, compilação, ligação e carregamento no Android ainda precisa ser implementado.
+
 ## Compilar localmente
 
 Requisitos: Python 3.10+, JDK 17, Android SDK API 35, Android NDK `28.2.13676358`, CMake `3.22.1` e Gradle `8.9`. Python também é usado pelo CMake para aplicar os hooks Android de entrada e diagnóstico ao checkout local dos submódulos.

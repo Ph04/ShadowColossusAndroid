@@ -37,6 +37,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var progressBar: ProgressBar
     private lateinit var importButton: Button
     private lateinit var playButton: Button
+    private lateinit var generationButton: Button
+    private lateinit var generationProgressBar: ProgressBar
+    private lateinit var generationProgressLabel: TextView
+    private lateinit var generationStatus: TextView
+    private lateinit var generationDetails: TextView
 
     private val isoPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(::importIso)
@@ -120,6 +125,56 @@ class MainActivity : ComponentActivity() {
         runtimeCard.addView(runtimeStatus, matchWidthWrap().apply { topMargin = dp(8) })
         content.addView(runtimeCard, matchWidthWrap().apply { topMargin = dp(24) })
 
+        // Honest preflight UI: this APK has the PS2 runtime but not the on-device
+        // generator/compiler. The progress bar below is for prerequisite checks only.
+        val generationCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            setBackgroundColor(0xFFF2F4F7.toInt())
+        }
+        generationCard.addView(TextView(this).apply {
+            text = "Preparação para recompilação no celular"
+            textSize = 16f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }, matchWidthWrap())
+        generationCard.addView(TextView(this).apply {
+            text = "A barra acompanha a verificação dos requisitos. Ela não representa porcentagem de compilação: o gerador e o compilador para Android ainda precisam ser integrados."
+            textSize = 13f
+            setPadding(0, dp(6), 0, dp(8))
+        }, matchWidthWrap())
+        generationProgressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 1000
+            progress = 0
+            isIndeterminate = false
+        }
+        generationCard.addView(generationProgressBar, matchWidthWrap().apply {
+            topMargin = dp(4)
+            bottomMargin = dp(4)
+        })
+        generationProgressLabel = TextView(this).apply {
+            text = "Verificação prévia: aguardando"
+            textSize = 12f
+        }
+        generationCard.addView(generationProgressLabel, matchWidthWrap())
+        generationStatus = TextView(this).apply {
+            text = "A recompilação ainda não está disponível nesta build."
+            textSize = 14f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setPadding(0, dp(8), 0, dp(4))
+        }
+        generationCard.addView(generationStatus, matchWidthWrap())
+        generationDetails = TextView(this).apply {
+            text = "Toque em verificar para ver quais requisitos já existem no aparelho e exatamente onde o processo fica bloqueado."
+            textSize = 12f
+        }
+        generationCard.addView(generationDetails, matchWidthWrap())
+        generationButton = Button(this).apply {
+            text = "Verificar requisitos da recompilação"
+            setOnClickListener { startRecompilationPreflight() }
+        }
+        generationCard.addView(generationButton, matchWidthWrap().apply { topMargin = dp(8) })
+        content.addView(generationCard, matchWidthWrap().apply { topMargin = dp(16) })
+
         content.addView(Button(this).apply {
             text = "Gerar e compartilhar diagnóstico completo"
             setOnClickListener {
@@ -135,7 +190,7 @@ class MainActivity : ComponentActivity() {
         }, matchWidthWrap().apply { topMargin = dp(12) })
 
         content.addView(TextView(this).apply {
-            text = "O código recompilado do jogo é gerado a partir da sua própria ISO e não é distribuído pelo aplicativo."
+            text = "A ISO continua privada. Nesta versão, a verificação visualiza os pré-requisitos, mas ainda não gera nem compila o código do jogo no celular."
             textSize = 13f
             setPadding(0, dp(20), 0, 0)
         }, matchWidthWrap())
@@ -245,6 +300,154 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }.start()
+    }
+
+    /**
+     * Checks genuine prerequisites for on-device recompilation and reports each stage.
+     * The percentage belongs only to this preflight; this APK does not run a compiler.
+     */
+    private fun startRecompilationPreflight() {
+        if (!::generationButton.isInitialized || !generationButton.isEnabled) return
+        generationButton.isEnabled = false
+        updateGenerationPreflight(
+            progress = 0,
+            label = "Verificação prévia: iniciando",
+            status = "Inspecionando os requisitos do aparelho…",
+            details = "Nenhum código do jogo está sendo compilado nesta etapa.",
+            indeterminate = true,
+        )
+
+        Thread {
+            try {
+                updateGenerationPreflight(
+                    150,
+                    "Verificação prévia: etapa 1/4",
+                    "Verificando a ISO importada",
+                    "Conferindo arquivo privado e tamanho esperado.",
+                    indeterminate = true,
+                )
+                val isoBytes = if (isoFile.isFile) isoFile.length() else 0L
+                if (!isoFile.isFile || isoBytes != EXPECTED_ISO_BYTES) {
+                    updateGenerationPreflight(
+                        1000,
+                        "Verificação prévia concluída: 100%",
+                        "Bloqueado: a ISO está ausente ou tem tamanho incorreto.",
+                        "Arquivo: ${isoFile.isFile}\nTamanho encontrado: ${isoBytes} bytes\nTamanho esperado: ${EXPECTED_ISO_BYTES} bytes\nA verificação de tamanho não confirma o hash nem a edição da ISO.",
+                    )
+                    DiagnosticLogger.event(this@MainActivity, "codegen_preflight_blocked", "reason=iso_missing_or_wrong_size; bytes=$isoBytes")
+                    return@Thread
+                }
+
+                updateGenerationPreflight(
+                    300,
+                    "Verificação prévia: etapa 2/4",
+                    "ISO encontrada",
+                    "O arquivo tem o tamanho esperado (${isoBytes} bytes). A integridade dos módulos ainda não foi validada nesta tela.",
+                    indeterminate = true,
+                )
+                val stat = StatFs(filesDir.absolutePath)
+                val availableBytes = stat.availableBytes
+                updateGenerationPreflight(
+                    450,
+                    "Verificação prévia: etapa 3/4",
+                    "Armazenamento consultado",
+                    "Espaço livre: ${formatGiB(availableBytes)} GiB. O launcher ainda não consegue estimar com precisão o espaço temporário necessário para gerar e compilar todas as fontes.",
+                    indeterminate = true,
+                )
+
+                val abis = android.os.Build.SUPPORTED_ABIS.toList()
+                val hasArm64 = abis.contains("arm64-v8a")
+                if (!hasArm64) {
+                    updateGenerationPreflight(
+                        1000,
+                        "Verificação prévia concluída: 100%",
+                        "Bloqueado: esta instalação não anuncia suporte ARM64.",
+                        "ABIs encontradas: ${abis.joinToString()}",
+                    )
+                    DiagnosticLogger.event(this@MainActivity, "codegen_preflight_blocked", "reason=arm64_abi_missing; abis=${abis.joinToString(",")}")
+                    return@Thread
+                }
+
+                updateGenerationPreflight(
+                    650,
+                    "Verificação prévia: etapa 4/4",
+                    "Arquitetura ARM64 confirmada",
+                    "ABIs anunciadas: ${abis.joinToString()}. Conferindo se o APK inclui o gerador e o compilador necessários.",
+                    indeterminate = true,
+                )
+                val nativeDir = File(applicationInfo.nativeLibraryDir)
+                val codegenLibrary = File(nativeDir, "libsotc_codegen.so")
+                val compilerInPrivateTools = File(filesDir, "sotc-toolchain/bin/clang")
+                val compilerInNativeDir = File(nativeDir, "libclang.so")
+                val hasCodegen = codegenLibrary.isFile
+                val hasCompiler = compilerInPrivateTools.isFile || compilerInNativeDir.isFile
+
+                val missing = mutableListOf<String>()
+                if (!hasCodegen) missing += "gerador PS2Recomp integrado ao Android (libsotc_codegen.so)"
+                if (!hasCompiler) missing += "toolchain de C/C++ para gerar a biblioteca nativa"
+                if (missing.isNotEmpty()) {
+                    val details = buildString {
+                        appendLine("ISO: encontrada; tamanho correto.")
+                        appendLine("ABI: ARM64 disponível.")
+                        appendLine("Espaço livre: ${formatGiB(availableBytes)} GiB.")
+                        appendLine("Gerador Android: ${if (hasCodegen) "encontrado" else "ausente"}.")
+                        appendLine("Compilador C/C++: ${if (hasCompiler) "encontrado" else "ausente"}.")
+                        appendLine()
+                        appendLine("A recompilação não começou. Falta integrar:")
+                        missing.forEach { appendLine("• $it") }
+                        appendLine()
+                        append("Os 100% indicam apenas que a verificação de pré-requisitos terminou, não que o jogo foi recompilado.")
+                    }
+                    updateGenerationPreflight(
+                        1000,
+                        "Verificação prévia concluída: 100%",
+                        "Recompilação bloqueada antes da geração de código.",
+                        details,
+                    )
+                    DiagnosticLogger.event(this@MainActivity, "codegen_preflight_blocked", "reason=android_generator_or_compiler_missing; generator=$hasCodegen; compiler=$hasCompiler; free_bytes=$availableBytes")
+                    return@Thread
+                }
+
+                updateGenerationPreflight(
+                    1000,
+                    "Verificação prévia concluída: 100%",
+                    "As ferramentas foram detectadas, mas o executor de recompilação ainda não está conectado.",
+                    "A presença de bibliotecas, por si só, não significa que o fluxo de geração, compilação e carregamento esteja implementado.",
+                )
+                DiagnosticLogger.event(this@MainActivity, "codegen_preflight_tools_found_but_executor_missing")
+            } catch (error: Exception) {
+                updateGenerationPreflight(
+                    1000,
+                    "Verificação prévia encerrada",
+                    "Falha ao verificar os requisitos.",
+                    "${error.javaClass.simpleName}: ${error.message ?: "sem detalhe"}",
+                )
+                DiagnosticLogger.event(this@MainActivity, "codegen_preflight_error", "type=${error.javaClass.name}; message=${error.message ?: "no-message"}")
+            } finally {
+                runOnUiThread { generationButton.isEnabled = true }
+            }
+        }.start()
+    }
+
+    private fun updateGenerationPreflight(
+        progress: Int,
+        label: String,
+        status: String,
+        details: String,
+        indeterminate: Boolean = false,
+    ) {
+        DiagnosticLogger.event(
+            this,
+            "codegen_preflight_progress",
+            "progress=${progress.coerceIn(0, 1000)}; label=$label; status=$status",
+        )
+        runOnUiThread {
+            generationProgressBar.isIndeterminate = indeterminate
+            generationProgressBar.progress = progress.coerceIn(0, 1000)
+            generationProgressLabel.text = label
+            generationStatus.text = status
+            generationDetails.text = details
+        }
     }
 
     private fun refreshIsoStatus() {
