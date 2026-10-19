@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "dev.mobile.sotcandroid"
-    compileSdk = 35
+    compileSdk = 35\n    ndkVersion = "28.2.13676358"
 
     defaultConfig {
         applicationId = "dev.mobile.sotcandroid"

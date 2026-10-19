@@ -25,6 +25,17 @@ set(PS2X_RUNNER_UNITY_BUILD_BATCH_SIZE 16 CACHE STRING "" FORCE)
 
 add_subdirectory("${SOTC_PS2RECOMP}" "${CMAKE_CURRENT_BINARY_DIR}/ps2recomp")
 
+# Several runtime source files include Intel intrinsic headers directly.
+# On AArch64 those system headers hard-error, even though PS2Recomp already
+# fetches sse2neon. Redirect just these legacy include names to sse2neon.
+set(SOTC_ARM_SSE_SHIM_DIR "${CMAKE_CURRENT_LIST_DIR}/arm_sse_shims")
+if(TARGET ps2_runtime)
+    target_include_directories(ps2_runtime BEFORE PRIVATE "${SOTC_ARM_SSE_SHIM_DIR}")
+endif()
+if(TARGET ps2EntryRunner)
+    target_include_directories(ps2EntryRunner BEFORE PRIVATE "${SOTC_ARM_SSE_SHIM_DIR}")
+endif()
+
 add_library(sotc_android_bridge SHARED native_bridge.cpp)
 target_compile_features(sotc_android_bridge PRIVATE cxx_std_17)
 target_compile_options(sotc_android_bridge PRIVATE -Wall -Wextra -Werror=return-type)
