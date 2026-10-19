@@ -1,6 +1,6 @@
 # Estado do porte
 
-**Marco atual:** integração do runtime Android de PS2Recomp em CI; ainda não jogável.
+**Marco atual:** runtime Android ARM64 compilável em CI, geração local do jogo e controles touch conectados ao polling do controle. Ainda não foi validado um boot real; não marcar como jogável até o teste com ISO.
 
 ## Implementado no repositório
 
@@ -11,6 +11,9 @@
 - [x] Auditoria estática automática dos bloqueios de porte, publicada como artefato da CI.
 - [x] CMake Android configurado para compilar `ps2_runtime` e o runner `ps2EntryRunner` do PS2Recomp, usando o caminho ARM64/Android upstream.
 - [x] CI configurada para construir o runtime ARM64 e o APK de diagnóstico; resultado do último commit disponível em [Actions](https://github.com/Ph04/ShadowColossusAndroid/actions).
+- [x] Overlay touch-screen com analógicos esquerdo/direito, botões PS2, múltiplos toques e controle de mostrar/ocultar.
+- [x] Biblioteca compartilhada de estado touch integrada ao polling do controle PS2 via hook Android aplicado ao checkout local do submódulo.
+- [x] Encaminhamento de stdout/stderr do entry point específico do jogo para Android logcat.
 
 ## O que falta para rodar Shadow of the Colossus
 
@@ -18,7 +21,8 @@
 2. Adicionado `scripts/prepare_sotc_android.py` para configurar/compilar as ferramentas host, gerar e validar `Port/generated/` localmente e então executar Gradle. A execução completa com uma ISO real ainda não foi feita neste ambiente.
 3. O CMake Android integra as fontes geradas de forma condicional; foi corrigida a remoção do `main.cpp` genérico para não depender da grafia exata do caminho. Essa parte só será exercitada com código gerado.
 4. Adaptar e validar o renderizador GS e seus shaders para os recursos gráficos disponíveis no Android; compilar o runtime não comprova compatibilidade. Esse é o principal bloqueio técnico após a geração/compilação do jogo.
-5. Integrar a ISO importada à engine, controles de toque, áudio, salvamentos e logs, depois validar boot e gameplay real.
+5. Validar o overlay touch e o gamepad no jogo real; a ponte está conectada no código, mas ainda não foi testada durante gameplay.
+6. Validar boot, áudio, saves e desempenho no aparelho. A prévia padrão da CI não inclui `Port/generated/`, portanto não é um APK jogável.
 
 ## Como baixar builds e relatórios
 
@@ -34,4 +38,4 @@ Consulte [docs/ANDROID_BUILD_FROM_ISO.md](docs/ANDROID_BUILD_FROM_ISO.md) para g
 
 ## Fallback gráfico
 
-O bridge força `PS2X_GS_GPU=0` e `PS2X_GS_THREAD=1` no Android antes de abrir a NativeActivity. Isso escolhe o rasterizador GS por software em lugar do backend GPU de desktop OpenGL 4.6/fragment-interlock. É uma tentativa de aumentar a chance de mostrar o jogo no boot; o desempenho e a saída gráfica real precisam de teste no aparelho. Um renderer GLES/Vulkan otimizado continua pendente.
+O bridge força `PS2X_GS_GPU=0` e `PS2X_GS_THREAD=1` no Android antes de abrir `GameActivity` (subclasse de NativeActivity). Isso escolhe o rasterizador GS por software em lugar do backend GPU de desktop OpenGL 4.6/fragment-interlock. É uma tentativa de aumentar a chance de mostrar o jogo no boot; o desempenho e a saída gráfica real precisam de teste no aparelho. Um renderer GLES/Vulkan otimizado continua pendente.

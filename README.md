@@ -2,7 +2,7 @@
 
 Projeto para portar para Android ARM64 a versão recompilada de [Shadow of the Colossus para PC](https://github.com/LightVelox/sotc-vibe-pc/tree/v0.1.0-preview.1), usando [Tenkaichi3DecompAndroid](https://github.com/dfdx047/Tenkaichi3DecompAndroid) como referência de arquitetura móvel.
 
-> **Estado real: protótipo Android, ainda não jogável.** O APK tem launcher de diagnóstico, importação verificada da ISO e uma biblioteca JNI. O build Android agora também compila o runtime ARM64/Android e o runner NativeActivity existentes no submódulo PS2Recomp. O código recompilado específico do jogo e o renderizador ainda não estão integrados.
+> **Estado real: prévia 0.2 em desenvolvimento, ainda não comprovada como jogável.** O repositório agora inclui o overlay touch-screen e sua ponte de entrada nativa, o fluxo local para gerar o código do jogo e diagnóstico nativo em logcat. O APK gerado pela CI continua sem o código recompilado específico do jogo, pois esse código precisa ser gerado a partir de uma ISO do usuário e compilado localmente.
 
 ## Código upstream fixado
 
@@ -38,6 +38,10 @@ APK: `app/build/outputs/apk/debug/app-debug.apk`.
 ## Gerar o código local e compilar o APK
 
 Com os submódulos recursivos, Python 3.10+, CMake, compilador C/C++, Android SDK/NDK e Gradle configurados, execute `python scripts/prepare_sotc_android.py --iso CAMINHO/SCES-53326.iso --jobs 1`. O script gera o código recompilado no computador e compila o APK debug. Requisitos e diagnósticos: [docs/ANDROID_BUILD_FROM_ISO.md](docs/ANDROID_BUILD_FROM_ISO.md). A ISO e `Port/generated/` permanecem locais.
+
+## Controles touch-screen
+
+A tela do jogo usa um overlay transparente com analógico esquerdo para movimento, analógico direito para câmera, botões PlayStation (△, ○, ×, □), L1/L2, R1/R2 e Start/Select. O botão **CONTROLES ON/OFF** oculta ou mostra o overlay. O overlay aceita múltiplos toques ao mesmo tempo; o estado de botões e eixos chega ao polling do controle PS2 por uma biblioteca nativa compartilhada. Essa integração está no código, mas precisa ser validada com o jogo realmente iniciado no aparelho.
 
 ## Renderer Android
 

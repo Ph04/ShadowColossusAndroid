@@ -24,7 +24,8 @@ O Dragon Rage demonstra uma estratégia prática: aplicação Android separada, 
 - [ ] Revisar licença e dependências de PS2Recomp.
 - [x] Criar preset CMake Android/Clang usando o caminho ARM64/sse2neon que existe no PS2Recomp fixado.
 - [ ] Mapear as dependências de plataforma e as intrínsecas SSE/AVX2; implementar NEON ou caminhos portáveis preservando a semântica necessária.
-- [ ] Adaptar relógios, threading, sistema de arquivos, sinais, logs e prioridade das threads.
+- [x] Encaminhar stdout/stderr do entry point de jogo para Android logcat por patch local do checkout.
+- [ ] Validar relógios, threading, sinais e prioridades no aparelho; o caminho de arquivos privados foi conectado, mas o boot real segue pendente.
 - [x] Criar `scripts/prepare_sotc_android.py`: configuração CMake host, geração local do código EE/VU1, verificação de relocations e build Gradle. A execução com uma ISO real ainda precisa ser validada no ambiente do usuário.
 
 ### Fase C — renderização e áudio
@@ -41,7 +42,8 @@ O Dragon Rage demonstra uma estratégia prática: aplicação Android separada, 
 - [x] Seletor Android e importação privada da ISO com validação do tamanho esperado; hashes de ELF/módulos são conferidos pelo runtime gerado.
 - [x] Encaminhar a ISO absoluta à NativeActivity e trocar o diretório de trabalho para armazenamento privado do app. Boot real ainda pendente de compilação das fontes geradas e teste no dispositivo.
 - [ ] Armazenamento privado de saves/cache/logs, com importação/exportação controladas.
-- [ ] Controles de toque configuráveis e compatibilidade com gamepad.
+- [x] Overlay touch-screen com dois analógicos, botões PS2, múltiplos toques e botão para mostrar/ocultar, integrado ao polling de controle via biblioteca compartilhada.
+- [ ] Validar o overlay em gameplay real, ajustar o mapeamento e testar controles físicos.
 - [ ] Resolução interna, limite de FPS, limite de memória/cache e qualidade dos efeitos.
 - [ ] Testes por marcos: boot, título, introdução, exploração, Agro e batalhas de colossos.
 
