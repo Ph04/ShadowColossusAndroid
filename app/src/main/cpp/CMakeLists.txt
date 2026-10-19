@@ -1,12 +1,14 @@
 cmake_minimum_required(VERSION 3.22.1)
 project(sotc_android_bridge LANGUAGES C CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# The pinned PS2Recomp submodule already has an Android/ARM64 runtime path.
-# Keep host recompiler tools disabled in the APK build and compile its actual
-# runtime and NativeActivity runner as separate native targets.
+# Source port + PS2Recomp are pinned as the upstream submodule.
 get_filename_component(SOTC_REPOSITORY_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../.." ABSOLUTE)
 set(SOTC_UPSTREAM "${SOTC_REPOSITORY_ROOT}/upstream/sotc-vibe-pc")
 set(SOTC_PS2RECOMP "${SOTC_UPSTREAM}/External/PS2Recomp")
+set(SOTC_PORT "${SOTC_UPSTREAM}/Port")
+set(SOTC_GENERATED "${SOTC_PORT}/generated")
 
 if(NOT EXISTS "${SOTC_PS2RECOMP}/CMakeLists.txt")
     message(FATAL_ERROR "Pinned PS2Recomp submodule missing at ${SOTC_PS2RECOMP}; check out submodules recursively.")
@@ -22,18 +24,81 @@ set(PS2X_ENABLE_DEBUG_UI OFF CACHE BOOL "" FORCE)
 set(PS2X_ENABLE_SCCACHE OFF CACHE BOOL "" FORCE)
 set(PS2X_ENABLE_RUNNER_UNITY_BUILD ON CACHE BOOL "" FORCE)
 set(PS2X_RUNNER_UNITY_BUILD_BATCH_SIZE 16 CACHE STRING "" FORCE)
-
 add_subdirectory("${SOTC_PS2RECOMP}" "${CMAKE_CURRENT_BINARY_DIR}/ps2recomp")
 
-# Several runtime source files include Intel intrinsic headers directly.
-# On AArch64 those system headers hard-error, even though PS2Recomp already
-# fetches sse2neon. Redirect just these legacy include names to sse2neon.
+# Several runtime files include Intel intrinsic header names directly.
+# On AArch64 redirect these legacy names to the upstream sse2neon compatibility
+# header instead of Clang's x86-only intrinsic headers.
 set(SOTC_ARM_SSE_SHIM_DIR "${CMAKE_CURRENT_LIST_DIR}/arm_sse_shims")
 if(TARGET ps2_runtime)
     target_include_directories(ps2_runtime BEFORE PRIVATE "${SOTC_ARM_SSE_SHIM_DIR}")
 endif()
 if(TARGET ps2EntryRunner)
     target_include_directories(ps2EntryRunner BEFORE PRIVATE "${SOTC_ARM_SSE_SHIM_DIR}")
+endif()
+
+# The upstream CMake file creates a generic PS2 ELF runner. If the user has
+# generated Shadow of the Colossus C++ from their own supported ISO, replace
+# only that runner's main() and attach the game-specific hooks and code.
+# Generated game code is intentionally not tracked or shipped in this repo.
+set(SOTC_GAME_ENGINE_AVAILABLE OFF)
+if(EXISTS "${SOTC_GENERATED}/register_functions.cpp" AND
+   EXISTS "${SOTC_GENERATED}/sotc_layout_generated.h")
+    message(STATUS "Shadow of the Colossus generated code found: wiring game host layer into ps2EntryRunner")
+
+    set(SOTC_HOST_SOURCES
+        "${SOTC_PORT}/src/sotc/config.cpp"
+        "${SOTC_PORT}/src/sotc/debug_script.cpp"
+        "${SOTC_PORT}/src/sotc/display_mode.cpp"
+        "${SOTC_PORT}/src/sotc/function_hooks.cpp"
+        "${SOTC_PORT}/src/sotc/game_disc.cpp"
+        "${SOTC_PORT}/src/sotc/hle/sce_cdvd.cpp"
+        "${SOTC_PORT}/src/sotc/hle/libgcc.cpp"
+        "${SOTC_PORT}/src/sotc/hle/sce_fileio.cpp"
+        "${SOTC_PORT}/src/sotc/idle_thread.cpp"
+        "${SOTC_PORT}/src/sotc/log.cpp"
+        "${SOTC_PORT}/src/sotc/module_guard.cpp"
+        "${SOTC_PORT}/src/sotc/motion_blur.cpp"
+        "${SOTC_PORT}/src/sotc/mouse_camera.cpp"
+        "${SOTC_PORT}/src/sotc/sha256.cpp"
+        "${SOTC_PORT}/src/sotc/window_icon.cpp"
+        "${SOTC_PORT}/src/sotc/watchdog.cpp"
+    )
+    foreach(source IN LISTS SOTC_HOST_SOURCES)
+        if(NOT EXISTS "${source}")
+            message(FATAL_ERROR "Missing required Shadow of the Colossus port source: ${source}")
+        endif()
+    endforeach()
+
+    file(GLOB SOTC_GENERATED_SOURCES CONFIGURE_DEPENDS "${SOTC_GENERATED}/*.cpp")
+    add_library(sotc_game_code STATIC ${SOTC_GENERATED_SOURCES})
+    target_include_directories(sotc_game_code PUBLIC "${SOTC_GENERATED}")
+    target_link_libraries(sotc_game_code PUBLIC ps2_runtime)
+    target_include_directories(sotc_game_code BEFORE PRIVATE "${SOTC_ARM_SSE_SHIM_DIR}")
+    set_target_properties(sotc_game_code PROPERTIES UNITY_BUILD OFF)
+
+    # Replace the generic runner entry point with the game-specific boot path.
+    get_target_property(SOTC_RUNNER_SOURCES ps2EntryRunner SOURCES)
+    set(SOTC_GENERIC_MAIN "${SOTC_PS2RECOMP}/ps2xRuntime/src/main.cpp")
+    list(REMOVE_ITEM SOTC_RUNNER_SOURCES "${SOTC_GENERIC_MAIN}")
+    set_property(TARGET ps2EntryRunner PROPERTY SOURCES "${SOTC_RUNNER_SOURCES}")
+    target_sources(ps2EntryRunner PRIVATE "${SOTC_PORT}/src/main.cpp" ${SOTC_HOST_SOURCES})
+    target_include_directories(ps2EntryRunner PRIVATE "${SOTC_PORT}/src" "${SOTC_GENERATED}")
+    target_link_libraries(ps2EntryRunner PRIVATE sotc_game_code)
+
+    file(GLOB SOTC_VU1_SOURCES CONFIGURE_DEPENDS "${SOTC_GENERATED}/vu1/*.cpp")
+    if(SOTC_VU1_SOURCES)
+        add_library(sotc_vu1_code STATIC ${SOTC_VU1_SOURCES})
+        target_include_directories(sotc_vu1_code PRIVATE "${SOTC_PS2RECOMP}/ps2xRuntime/src/lib/vu" "${SOTC_GENERATED}")
+        target_link_libraries(sotc_vu1_code PUBLIC ps2_runtime)
+        target_include_directories(sotc_vu1_code BEFORE PRIVATE "${SOTC_ARM_SSE_SHIM_DIR}")
+        target_link_libraries(ps2EntryRunner PRIVATE sotc_vu1_code)
+        target_compile_definitions(ps2EntryRunner PRIVATE SOTC_HAS_VU1_PROGRAMS=1)
+    endif()
+
+    set(SOTC_GAME_ENGINE_AVAILABLE ON)
+else()
+    message(STATUS "SOTC generated C++ is absent; building runtime diagnostics only, not a playable game")
 endif()
 
 add_library(sotc_android_bridge SHARED native_bridge.cpp)
@@ -44,4 +109,7 @@ target_link_libraries(sotc_android_bridge PRIVATE ${android_log})
 
 if(TARGET ps2_runtime AND TARGET ps2EntryRunner)
     target_compile_definitions(sotc_android_bridge PRIVATE SOTC_PS2_RUNTIME_CONFIGURED=1)
+endif()
+if(SOTC_GAME_ENGINE_AVAILABLE)
+    target_compile_definitions(sotc_android_bridge PRIVATE SOTC_GAME_ENGINE_AVAILABLE=1)
 endif()

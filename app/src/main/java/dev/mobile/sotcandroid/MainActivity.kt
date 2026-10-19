@@ -1,6 +1,6 @@
 package dev.mobile.sotcandroid
 
-import android.net.Uri
+import android.content.Intent
 import android.os.Bundle
 import android.os.StatFs
 import android.view.Gravity
@@ -9,18 +9,16 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.security.MessageDigest
 
 class MainActivity : ComponentActivity() {
     companion object {
         private const val EXPECTED_ISO_BYTES = 4_635_918_336L
-        private const val EXPECTED_ISO_SHA256 =
-            "068925770645266189005f09c9a9a1fee25726bfc93c89b12f832f3673664ac4"
         private const val COPY_BUFFER_BYTES = 1024 * 1024
         private const val PROGRESS_STEP_BYTES = 16L * 1024 * 1024
 
@@ -30,6 +28,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private external fun nativeRuntimeStatus(): String
+    private external fun nativeEngineAvailable(): Boolean
+    private external fun nativeSetIsoPath(path: String): Boolean
 
     private lateinit var isoStatus: TextView
     private lateinit var runtimeStatus: TextView
@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var importButton: Button
     private lateinit var playButton: Button
 
-    private val isoPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+    private val isoPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(::importIso)
     }
 
@@ -69,7 +69,7 @@ class MainActivity : ComponentActivity() {
         }, matchWidthWrap())
 
         content.addView(TextView(this).apply {
-            text = "Importe sua própria imagem PAL europeia SCES-53326 v1.00. O aplicativo verifica o tamanho e o SHA-256 antes de aceitar o arquivo."
+            text = "Importe sua própria ISO PAL europeia SCES-53326 v1.00. O tamanho é verificado aqui; o runtime valida arquivos internos do disco ao iniciar."
             textSize = 15f
             gravity = Gravity.CENTER
         }, matchWidthWrap())
@@ -99,8 +99,9 @@ class MainActivity : ComponentActivity() {
         })
 
         playButton = Button(this).apply {
-            text = "Jogar — engine ainda não integrada"
+            text = "Engine do jogo ainda não integrada"
             isEnabled = false
+            setOnClickListener { launchGame() }
         }
         content.addView(playButton, matchWidthWrap())
 
@@ -111,7 +112,7 @@ class MainActivity : ComponentActivity() {
         }
         runtimeStatus = TextView(this).apply { textSize = 14f }
         runtimeCard.addView(TextView(this).apply {
-            text = "Diagnóstico nativo"
+            text = "Estado da engine"
             textSize = 16f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
         }, matchWidthWrap())
@@ -119,7 +120,7 @@ class MainActivity : ComponentActivity() {
         content.addView(runtimeCard, matchWidthWrap().apply { topMargin = dp(24) })
 
         content.addView(TextView(this).apply {
-            text = "Próximas etapas: portar o runtime recompilado para ARM64, adaptar o renderizador GS para Android e integrar áudio e controles."
+            text = "O código recompilado do jogo é gerado a partir da sua própria ISO e não é distribuído pelo aplicativo."
             textSize = 13f
             setPadding(0, dp(20), 0, 0)
         }, matchWidthWrap())
@@ -127,14 +128,23 @@ class MainActivity : ComponentActivity() {
         setContentView(scroll)
         refreshIsoStatus()
         refreshRuntimeStatus()
+        refreshLaunchButton()
     }
 
-    private fun importIso(uri: Uri) {
+    override fun onResume() {
+        super.onResume()
+        if (::isoStatus.isInitialized) {
+            refreshIsoStatus()
+            refreshLaunchButton()
+        }
+    }
+
+    private fun importIso(uri: android.net.Uri) {
         importButton.isEnabled = false
         playButton.isEnabled = false
         progressBar.progress = 0
         progressBar.isIndeterminate = true
-        isoStatus.text = "Preparando a importação. O arquivo tem aproximadamente 4,64 GB; mantenha espaço livre suficiente."
+        isoStatus.text = "Preparando importação de aproximadamente 4,64 GB. Mantenha espaço livre suficiente."
 
         Thread {
             val folder = File(filesDir, "game")
@@ -146,14 +156,12 @@ class MainActivity : ComponentActivity() {
                 val stat = StatFs(filesDir.absolutePath)
                 val requiredSpace = EXPECTED_ISO_BYTES + 128L * 1024 * 1024
                 if (stat.availableBytes < requiredSpace) {
-                    throw IOException("Espaço insuficiente no armazenamento interno do aplicativo. Libere pelo menos 4,76 GB.")
+                    throw IOException("Espaço insuficiente. Libere pelo menos 4,76 GB no armazenamento interno do aplicativo.")
                 }
 
                 partial.delete()
-                val digest = MessageDigest.getInstance("SHA-256")
                 var total = 0L
                 var lastReported = 0L
-
                 val input = contentResolver.openInputStream(uri)
                     ?: throw IOException("O Android não conseguiu abrir o arquivo selecionado.")
 
@@ -164,13 +172,10 @@ class MainActivity : ComponentActivity() {
                             val count = source.read(buffer)
                             if (count < 0) break
                             if (count == 0) continue
-
                             total += count.toLong()
                             if (total > EXPECTED_ISO_BYTES) {
-                                throw IOException("O arquivo é maior que a ISO oficial suportada.")
+                                throw IOException("O arquivo é maior que a imagem suportada.")
                             }
-
-                            digest.update(buffer, 0, count)
                             output.write(buffer, 0, count)
 
                             if (total - lastReported >= PROGRESS_STEP_BYTES) {
@@ -188,11 +193,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 if (total != EXPECTED_ISO_BYTES) {
-                    throw IOException("Tamanho incorreto: ${total} bytes. A versão suportada possui ${EXPECTED_ISO_BYTES} bytes.")
-                }
-                val sha256 = digest.digest().joinToString("") { "%02x".format(it) }
-                if (!sha256.equals(EXPECTED_ISO_SHA256, ignoreCase = true)) {
-                    throw IOException("O SHA-256 não corresponde à versão PAL SCES-53326 v1.00 esperada. A ISO não foi aceita.")
+                    throw IOException("Tamanho incorreto: ${total} bytes; esperado ${EXPECTED_ISO_BYTES} bytes.")
                 }
 
                 val destination = isoFile
@@ -200,14 +201,16 @@ class MainActivity : ComponentActivity() {
                     throw IOException("Não foi possível substituir a ISO anterior.")
                 }
                 if (!partial.renameTo(destination)) {
-                    throw IOException("A ISO foi verificada, mas não foi possível finalizar a importação.")
+                    throw IOException("A cópia terminou, mas não foi possível finalizar a importação.")
                 }
 
                 runOnUiThread {
                     progressBar.isIndeterminate = false
                     progressBar.progress = 1000
-                    isoStatus.text = "ISO importada e verificada. SHA-256 correto. Arquivo guardado no armazenamento privado do aplicativo."
+                    isoStatus.text = "ISO copiada. A versão exata será verificada pelo runtime ao iniciar o jogo."
                     importButton.isEnabled = true
+                    refreshIsoStatus()
+                    refreshLaunchButton()
                 }
             } catch (error: Exception) {
                 partial.delete()
@@ -216,6 +219,7 @@ class MainActivity : ComponentActivity() {
                     progressBar.progress = 0
                     isoStatus.text = "Importação não concluída: ${error.message ?: error.javaClass.simpleName}"
                     importButton.isEnabled = true
+                    refreshLaunchButton()
                 }
             }
         }.start()
@@ -223,9 +227,9 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshIsoStatus() {
         isoStatus.text = if (isoFile.isFile && isoFile.length() == EXPECTED_ISO_BYTES) {
-            "ISO encontrada no armazenamento privado (${formatGiB(isoFile.length())} GB). Ela foi verificada durante a importação."
+            "Imagem presente no armazenamento privado (${formatGiB(isoFile.length())} GiB). O runtime verificará boot ELF e módulos antes de executar."
         } else {
-            "Nenhuma ISO validada importada."
+            "Nenhuma imagem com o tamanho esperado foi importada."
         }
     }
 
@@ -237,8 +241,34 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun formatGiB(bytes: Long): String = String.format("%.2f", bytes / (1024.0 * 1024.0 * 1024.0))
+    private fun refreshLaunchButton() {
+        val hasIso = isoFile.isFile && isoFile.length() == EXPECTED_ISO_BYTES
+        val hasEngine = try { nativeEngineAvailable() } catch (_: UnsatisfiedLinkError) { false }
+        playButton.isEnabled = hasIso && hasEngine
+        playButton.text = when {
+            !hasIso -> "Importe a ISO para continuar"
+            !hasEngine -> "Jogo indisponível — fontes recompiladas pendentes"
+            else -> "Iniciar Shadow of the Colossus"
+        }
+    }
 
+    private fun launchGame() {
+        if (!isoFile.isFile || isoFile.length() != EXPECTED_ISO_BYTES) {
+            refreshLaunchButton()
+            return
+        }
+        if (!nativeEngineAvailable()) {
+            Toast.makeText(this, "A engine do jogo ainda não foi compilada com as fontes geradas da sua ISO.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (!nativeSetIsoPath(isoFile.absolutePath)) {
+            Toast.makeText(this, "Não foi possível encaminhar a ISO à engine nativa.", Toast.LENGTH_LONG).show()
+            return
+        }
+        startActivity(Intent(this, android.app.NativeActivity::class.java))
+    }
+
+    private fun formatGiB(bytes: Long): String = String.format("%.2f", bytes / (1024.0 * 1024.0 * 1024.0))
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun matchWidthWrap() = LinearLayout.LayoutParams(
