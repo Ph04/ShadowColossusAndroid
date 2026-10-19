@@ -132,7 +132,7 @@ def patch(source: Path) -> None:
     if "redirectStdioToLogcat();" in text and 'ANDROID_LOG_INFO, "sotc"' in text:
         if "#include <fstream>" not in text:
             text = text.replace("#include <cstring>", "#include <cstring>\n#include <fstream>", 1)
-        text, replacements = PATCHED_NAMESPACE.subn(NAMESPACE_BLOCK, text, count=1)
+        text, replacements = PATCHED_NAMESPACE.subn(lambda _match: NAMESPACE_BLOCK, text, count=1)
         if replacements != 1:
             raise SystemExit(f"Não reconheci o hook Android antigo em {source}; nenhum patch foi gravado.")
         source.write_text(text, encoding="utf-8")
@@ -179,7 +179,7 @@ def self_test() -> None:
         "#endif\n\n"
         "    std::filesystem::path executableDirectory()"
     )
-    upgraded, count = PATCHED_NAMESPACE.subn(NAMESPACE_BLOCK, old_patch, count=1)
+    upgraded, count = PATCHED_NAMESPACE.subn(lambda _match: NAMESPACE_BLOCK, old_patch, count=1)
     assert count == 1 and "sotc-boot.log" in upgraded
 
 
