@@ -59,7 +59,7 @@ python scripts/prepare_sotc_android.py --iso CAMINHO/SCES-53326.iso --jobs 1 --b
 
 Esse comando verifica a ISO, gera o código com PS2Recomp e monta um APK que inclui as fontes geradas na engine ARM64. O APK final está em `app/build/outputs/apk/release/app-release.apk`. Para o primeiro teste, pode-se adicionar `--skip-vu1`, aceitando possível redução de desempenho. Para coletar diagnóstico use `--build-type diagnostic`. A ISO e `Port/generated/` permanecem locais; não faça commit nem envie esses dados ao GitHub.
 
-Mais detalhes: [docs/ON_DEVICE_RECOMPILATION.md](docs/ON_DEVICE_RECOMPILATION.md) e [docs/DIAGNOSTIC_BUILD.md](docs/DIAGNOSTIC_BUILD.md).
+Mais detalhes: [docs/ON_DEVICE_RECOMPILATION.md](docs/ON_DEVICE_RECOMPILATION.md) e [docs/DIAGNOSTIC_BUILD.md](docs/DIAGNOSTIC_BUILD.md). Comparação com outro port nativo: [docs/REFERENCE_SHIPWRIGHT_ANDROID.md](docs/REFERENCE_SHIPWRIGHT_ANDROID.md).
 
 ## Controles touch-screen
 
