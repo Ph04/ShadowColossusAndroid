@@ -77,6 +77,10 @@ class TouchControlsView(
     private fun buttons(): List<ButtonPosition> {
         val r = buttonRadius()
         val shoulderR = min(width, height) * 0.043f
+        val dpadR = min(width, height) * 0.035f
+        val dpadX = width * 0.37f
+        val dpadY = height * 0.78f
+        val dpadStep = min(width, height) * 0.076f
         return listOf(
             ButtonPosition(L1, "L1", width * 0.08f, height * 0.14f, shoulderR),
             ButtonPosition(L2, "L2", width * 0.18f, height * 0.14f, shoulderR),
@@ -84,6 +88,12 @@ class TouchControlsView(
             ButtonPosition(R2, "R2", width * 0.90f, height * 0.14f, shoulderR),
             ButtonPosition(SELECT, "SELECT", width * 0.44f, height * 0.075f, shoulderR * 0.9f),
             ButtonPosition(START, "START", width * 0.56f, height * 0.075f, shoulderR * 0.9f),
+            ButtonPosition(L3, "L3", width * 0.22f, height * 0.54f, dpadR),
+            ButtonPosition(R3, "R3", width * 0.68f, height * 0.54f, dpadR),
+            ButtonPosition(UP, "↑", dpadX, dpadY - dpadStep, dpadR),
+            ButtonPosition(DOWN, "↓", dpadX, dpadY + dpadStep, dpadR),
+            ButtonPosition(LEFT, "←", dpadX - dpadStep, dpadY, dpadR),
+            ButtonPosition(RIGHT, "→", dpadX + dpadStep, dpadY, dpadR),
             ButtonPosition(TRIANGLE, "△", width * 0.86f, height * 0.64f, r),
             ButtonPosition(SQUARE, "□", width * 0.81f, height * 0.78f, r),
             ButtonPosition(CIRCLE, "○", width * 0.91f, height * 0.78f, r),
