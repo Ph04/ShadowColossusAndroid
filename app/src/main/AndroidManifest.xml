@@ -16,7 +16,7 @@
         </activity>
 
         <activity
-            android:name="android.app.NativeActivity"
+            android:name=".GameActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation"
             android:screenOrientation="landscape"
             android:exported="false"
