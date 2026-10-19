@@ -107,7 +107,10 @@ def generate_game_sources(upstream: Path, iso: Path, host_build: Path, jobs: int
         "-DPS2X_BUILD_RECOMP=ON",
         "-DPS2X_BUILD_RUNTIME=ON",
         "-DPS2X_BUILD_ANALYZER=OFF",
-        "-DPS2X_BUILD_TEST=OFF",
+        # vu1_recomp is defined by the upstream ps2xTest subdirectory.
+        # Enable that subdirectory only for the full VU1 build; with --skip-vu1
+        # the EE recompiler can still be built without pulling in test targets.
+        "-DPS2X_BUILD_TEST=" + ("OFF" if skip_vu1 else "ON"),
         "-DPS2X_BUILD_STUDIO=OFF",
         "-DPS2X_ENABLE_FFMPEG=OFF",
         "-DPS2X_ENABLE_DEBUG_UI=OFF",
@@ -224,7 +227,7 @@ def build_android_apk(project_root: Path, build_type: str) -> Path:
     if not gradle:
         raise BuildError("Gradle não foi encontrado no PATH. Instale Gradle 8.9 ou use Android Studio.")
     task = ":app:assembleDebug" if build_type == "debug" else ":app:assembleRelease"
-    run([gradle, "--no-daemon", "--stacktrace", task], cwd=project_root)
+    run([gradle, "--no-daemon", "--max-workers=1", "--stacktrace", task], cwd=project_root)
     apk_name = "app-debug.apk" if build_type == "debug" else "app-release-unsigned.apk"
     apk = project_root / "app" / "build" / "outputs" / "apk" / build_type / apk_name
     if not apk.is_file():
