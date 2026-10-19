@@ -14,7 +14,8 @@ O Dragon Rage demonstra uma estratégia prática: aplicação Android separada, 
 
 - [x] Projeto Gradle mínimo.
 - [x] CI no GitHub Actions que compila APK `arm64-v8a` em cada push/PR e sob demanda.
-- [x] Biblioteca JNI nativa mínima para provar o fluxo Kotlin → código nativo.\n- [x] Integrar no CMake do APK o runtime Android ARM64 de PS2Recomp e o runner NativeActivity upstream.
+- [x] Biblioteca JNI nativa mínima para provar o fluxo Kotlin → código nativo.
+- [x] Integrar no CMake do APK o runtime Android ARM64 de PS2Recomp e o runner NativeActivity upstream.
 - [ ] Fixar versões exatas de cada dependência upstream e armazenar hashes.
 - [ ] Adicionar cache seguro para ferramenta/dependências sem armazenar dados do jogo.
 
@@ -24,7 +25,7 @@ O Dragon Rage demonstra uma estratégia prática: aplicação Android separada, 
 - [x] Criar preset CMake Android/Clang usando o caminho ARM64/sse2neon que existe no PS2Recomp fixado.
 - [ ] Mapear as dependências de plataforma e as intrínsecas SSE/AVX2; implementar NEON ou caminhos portáveis preservando a semântica necessária.
 - [ ] Adaptar relógios, threading, sistema de arquivos, sinais, logs e prioridade das threads.
-- [ ] Definir um build host/tooling para gerar o código recompilado e, depois, compilar a biblioteca Android. Os geradores de Windows não devem ser assumidos portáveis.
+- [x] Criar `scripts/prepare_sotc_android.py`: configuração CMake host, geração local do código EE/VU1, verificação de relocations e build Gradle. A execução com uma ISO real ainda precisa ser validada no ambiente do usuário.
 
 ### Fase C — renderização e áudio
 
@@ -36,7 +37,8 @@ O Dragon Rage demonstra uma estratégia prática: aplicação Android separada, 
 
 ### Fase D — aplicação jogável
 
-- [x] Seletor Android e importação privada da ISO com validação de tamanho e SHA-256.\n- [ ] Conectar o arquivo importado à engine real e validar recursos na hora do boot.
+- [x] Seletor Android e importação privada da ISO com validação do tamanho esperado; hashes de ELF/módulos são conferidos pelo runtime gerado.
+- [x] Encaminhar a ISO absoluta à NativeActivity e trocar o diretório de trabalho para armazenamento privado do app. Boot real ainda pendente de compilação das fontes geradas e teste no dispositivo.
 - [ ] Armazenamento privado de saves/cache/logs, com importação/exportação controladas.
 - [ ] Controles de toque configuráveis e compatibilidade com gamepad.
 - [ ] Resolução interna, limite de FPS, limite de memória/cache e qualidade dos efeitos.

@@ -27,6 +27,11 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Validate local ISO code-generation helper
+        run: |
+          python3 -m py_compile scripts/prepare_sotc_android.py
+          python3 scripts/prepare_sotc_android.py --check-source-tree --upstream upstream/sotc-vibe-pc
+
       - name: Audit upstream Android port blockers
         run: python3 scripts/android_port_audit.py --upstream upstream/sotc-vibe-pc --output build/ANDROID_PORT_AUDIT.md
 

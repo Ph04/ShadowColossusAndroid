@@ -35,6 +35,10 @@ gradle --no-daemon :app:assembleDebug
 
 APK: `app/build/outputs/apk/debug/app-debug.apk`.
 
+## Gerar o código local e compilar o APK
+
+Com os submódulos recursivos, Python 3.10+, CMake, compilador C/C++, Android SDK/NDK e Gradle configurados, execute `python scripts/prepare_sotc_android.py --iso CAMINHO/SCES-53326.iso --jobs 1`. O script gera o código recompilado no computador e compila o APK debug. Requisitos e diagnósticos: [docs/ANDROID_BUILD_FROM_ISO.md](docs/ANDROID_BUILD_FROM_ISO.md). A ISO e `Port/generated/` permanecem locais.
+
 ## Etapas críticas restantes
 
 1. Tornar o gerador de código recompilado do upstream compatível com host Linux/Clang.
