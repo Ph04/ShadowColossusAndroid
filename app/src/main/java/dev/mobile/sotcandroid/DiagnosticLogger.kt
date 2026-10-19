@@ -70,7 +70,6 @@ object DiagnosticLogger {
         val memory = ActivityManager.MemoryInfo()
         manager?.getMemoryInfo(memory)
         val stat = StatFs(context.filesDir.absolutePath)
-        val nativeDir = File(context.applicationInfo.nativeLibraryDir)
         val libraries = runCatching {
             ZipFile(context.applicationInfo.sourceDir).use { apk ->
                 listOf(
@@ -90,8 +89,10 @@ object DiagnosticLogger {
         val isoBytes = if (isoExists) isoFile.length() else 0L
         val appLog = readTail(File(File(context.filesDir, "logs"), "sotc-app.log"), 45_000)
         val bootLog = readTail(File(File(context.filesDir, "logs"), "sotc-boot.log"), 70_000)
-        val privateEntries = context.filesDir.listFiles()?.sortedBy { it.name }?.joinToString("\n") {
-            "${it.name}: ${if (it.isDirectory) "directory" else "file"}; bytes=${if (it.isFile) it.length() else -1L}"
+        val privateEntries = context.filesDir.listFiles()?.sortedBy { it.name }?.joinToString("\n") { item ->
+            val kind = if (item.isDirectory) "directory" else "file"
+            val bytes = if (item.isFile) item.length() else -1L
+            "${item.name}: $kind; bytes=$bytes"
         } ?: "(directory listing failed)"
         val logsEntries = File(context.filesDir, "logs").listFiles()?.sortedBy { it.name }?.joinToString("\n") {
             "${it.name}: exists=${it.isFile}; bytes=${if (it.isFile) it.length() else 0L}"
@@ -105,6 +106,7 @@ object DiagnosticLogger {
             context.packageName.endsWith(".debug") -> "debug"
             else -> "release"
         }
+        val supportedAbis = Build.SUPPORTED_ABIS.joinToString(separator = ",")
         return buildString {
             appendLine("SHADOW COLOSSUS ANDROID — DIAGNOSTIC REPORT v1")
             appendLine("timestamp=${timestamp()}")
@@ -115,7 +117,7 @@ object DiagnosticLogger {
             appendLine("android_sdk=${Build.VERSION.SDK_INT}")
             appendLine("manufacturer=${Build.MANUFACTURER}")
             appendLine("model=${Build.MODEL}")
-            appendLine("supported_abis=${Build.SUPPORTED_ABIS.joinToString(",")}")
+            appendLine("supported_abis=$supportedAbis")
             appendLine("native_library_dir=${context.applicationInfo.nativeLibraryDir}")
             appendLine("files_dir=${context.filesDir.absolutePath}")
             appendLine("available_storage_bytes=${stat.availableBytes}")
