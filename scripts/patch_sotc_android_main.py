@@ -135,6 +135,14 @@ def patch(source: Path) -> None:
         text, replacements = PATCHED_NAMESPACE.subn(lambda _match: NAMESPACE_BLOCK, text, count=1)
         if replacements != 1:
             raise SystemExit(f"Não reconheci o hook Android antigo em {source}; nenhum patch foi gravado.")
+        old_main = '''#if defined(__ANDROID__)
+    redirectStdioToLogcat();
+#endif
+#if defined(_WIN32)'''
+        if "ScopedSotcLogcatCleanup logcatCleanup;" not in text:
+            if old_main not in text:
+                raise SystemExit(f"Não reconheci o ponto de saída do logger em {source}; nenhum patch foi gravado.")
+            text = text.replace(old_main, MAIN_BLOCK, 1)
         source.write_text(text, encoding="utf-8")
         print(f"Hook Android atualizado com log local: {source}")
         return
