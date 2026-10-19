@@ -30,7 +30,7 @@ PATTERNS = (
     ("x86 SIMD intrinsics", re.compile(r"#\s*include\s*[<\"](?:immintrin|xmmintrin|emmintrin)\.h[>\"]|_mm256_|_mm_storeu_ps|_mm_loadu_ps")),
 )
 
-SOURCE_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx", ".cmake", ".txt", ".toml", ".py"}
+SOURCE_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx", ".cmake", ".txt", ".toml", ".py", ".md", ".glsl", ".vert", ".frag", ".comp"}
 
 
 def git_value(repo: Path, *args: str) -> str:

@@ -1,41 +1,50 @@
 # ShadowColossusAndroid
 
-Projeto separado para preparar o porte Android ARM64 de [sotc-vibe-pc](https://github.com/LightVelox/sotc-vibe-pc/tree/v0.1.0-preview.1), usando o projeto [Tenkaichi3DecompAndroid](https://github.com/dfdx047/Tenkaichi3DecompAndroid) como referência de arquitetura Android e CI.
+Projeto para portar para Android ARM64 a versão recompilada de [Shadow of the Colossus para PC](https://github.com/LightVelox/sotc-vibe-pc/tree/v0.1.0-preview.1), usando [Tenkaichi3DecompAndroid](https://github.com/dfdx047/Tenkaichi3DecompAndroid) como referência de arquitetura e compilação móvel.
 
-> **Estado atual: scaffold de compilação, não é um APK jogável.** Este repositório inicial só confirma que a estrutura Android/Gradle, a NDK ARM64 e uma biblioteca JNI mínima compilam e carregam. A engine PS2Recomp, o runtime de Shadow of the Colossus, o renderizador, áudio e controles do jogo ainda precisam ser portados e integrados.
+> **Estado real: protótipo Android, ainda não jogável.** O app tem agora uma tela de diagnóstico, uma biblioteca JNI mínima e importação da ISO com verificação de tamanho e SHA-256. A engine recompilada, renderizador, áudio e controles do jogo ainda precisam ser portados.
 
-## O que a CI faz
+## Código upstream fixado
 
-A cada `push`, pull request ou execução manual em **Actions → Android APK**, o GitHub Actions compila um APK de depuração ARM64 e publica o APK como artefato da execução. A compilação não necessita de uma ISO nem inclui dados do jogo.
+O projeto de PC está vinculado como submódulo em `upstream/sotc-vibe-pc`, fixado em `v0.1.0-preview.1`. O PS2Recomp é mantido como submódulo do upstream e é obtido recursivamente no CI. Essa separação permite estudar e adaptar a engine sem modificar o repositório original.
 
-## Como obter o APK de teste
+## Compilação de APK
 
-1. Abra a aba **Actions** do repositório.
-2. Selecione **Android APK** e clique em **Run workflow**, ou envie um commit.
-3. Quando a execução terminar, abra a execução e baixe o artefato `ShadowColossusAndroid-debug-apk`.
+O GitHub Actions compila um APK de depuração `arm64-v8a` em cada push, pull request ou execução manual.
 
-O APK atual é apenas um aplicativo-base de diagnóstico. Ainda não inicia Shadow of the Colossus.
+1. Abra **Actions → Android APK**.
+2. Execute **Run workflow** ou use a execução iniciada pelo último commit.
+3. Baixe o artefato `ShadowColossusAndroid-debug-apk` para obter o APK de teste.
+4. Baixe também `Android-port-audit` para ver o relatório gerado a partir do código upstream fixado.
+
+O APK de diagnóstico não inicia o jogo até a engine real ser portada. O sucesso da compilação do launcher não deve ser confundido com gameplay funcional.
+
+## Importação da ISO
+
+Na tela inicial, selecione sua própria ISO PAL europeia `SCES-53326 v1.00`. O app copia para o armazenamento privado e confere o tamanho esperado de 4.635.918.336 bytes e o SHA-256 da versão suportada. É necessário espaço interno livre suficiente para armazenar a imagem; ela não é enviada ao GitHub.
+
+A ISO, os assets, os arquivos C++ gerados a partir da imagem e os saves são ignorados pelo Git. Nunca envie esses arquivos ao repositório.
 
 ## Compilar localmente
 
-Requisitos: JDK 17, Android SDK com API 35, Android NDK `27.2.12479018`, CMake `3.22.1` e Gradle `8.9`.
+Requisitos: JDK 17, Android SDK API 35, NDK `27.2.12479018`, CMake `3.22.1` e Gradle `8.9`.
 
 ```sh
 gradle --no-daemon :app:assembleDebug
 ```
 
-APK gerado em `app/build/outputs/apk/debug/app-debug.apk`.
+APK: `app/build/outputs/apk/debug/app-debug.apk`.
 
-## Próximas etapas do porte real
+## Próximos marcos técnicos
 
-Veja [`docs/ANDROID_PORT_PLAN.md`](docs/ANDROID_PORT_PLAN.md). Em resumo:
+Veja [`docs/ANDROID_PORT_PLAN.md`](docs/ANDROID_PORT_PLAN.md). O relatório estático [`PORT_STATUS.md`](PORT_STATUS.md) diferencia o que existe hoje das etapas ainda abertas.
 
-1. Fazer o runtime e o código recompilado compilar com Android NDK/Clang para `arm64-v8a`, eliminando dependências exclusivas de Windows/MSVC e instruções x86.
-2. Criar uma camada de plataforma Android para arquivos, threads, entrada, áudio e ciclo de vida.
-3. Adaptar o renderizador GS para os recursos gráficos de Android; não basta trocar o nome da API. Validar primeiro em Vulkan e avaliar OpenGL ES quando for viável.
-4. Integrar a geração dos milhares de arquivos C++ produzidos a partir da imagem do usuário, sem exigir compilação pesada no aparelho.
-5. Implementar seleção/verificação da ISO, controles de toque, salvamentos, diagnóstico e otimizações.
+- Compilar ferramentas de geração do upstream em Linux/Clang e produzir o código recompilado a partir de uma cópia de jogo fornecida pelo usuário.
+- Portar o runtime para Android NDK/Clang ARM64 e substituir dependências de Windows/MSVC e intrínsecas x86.
+- Adaptar corretamente o renderizador GS e sincronização gráfica para Android, provavelmente começando por Vulkan.
+- Integrar áudio, controles de toque, gamepad, saves e diagnóstico.
+- Testar boot e gameplay reais no aparelho.
 
-## Dados do jogo e direitos
+## Licenças e dados
 
-Nenhuma ISO, BIOS, assets, arquivo gerado a partir do jogo ou executável proprietário é distribuído aqui. O fluxo futuro deve exigir que a pessoa forneça sua própria cópia legítima, compatível com a versão suportada pelo projeto original. Antes de copiar código de outros projetos para cá, revisar suas licenças e manter os avisos exigidos.
+Este repositório não distribui jogo, ISO, BIOS, assets ou código gerado derivado de uma imagem de jogo. Antes de transportar código de terceiros para este repositório, é obrigatório revisar as licenças e os avisos de cada dependência.

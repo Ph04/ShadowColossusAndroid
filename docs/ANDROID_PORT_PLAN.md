@@ -36,7 +36,7 @@ O Dragon Rage demonstra uma estratégia prática: aplicação Android separada, 
 
 ### Fase D — aplicação jogável
 
-- [ ] Seletor de arquivo Android e validação da versão suportada por hash.
+- [x] Seletor Android e importação privada da ISO com validação de tamanho e SHA-256.\n- [ ] Conectar o arquivo importado à engine real e validar recursos na hora do boot.
 - [ ] Armazenamento privado de saves/cache/logs, com importação/exportação controladas.
 - [ ] Controles de toque configuráveis e compatibilidade com gamepad.
 - [ ] Resolução interna, limite de FPS, limite de memória/cache e qualidade dos efeitos.

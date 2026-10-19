@@ -1,25 +1,28 @@
 # Estado do porte
 
-**Status:** infraestrutura inicial de compilação, ainda não jogável.
+**Marco atual:** launcher Android e processo inicial de integração configurados; jogo ainda não jogável.
 
-## Confirmado no repositório
+## Já implementado neste repositório
 
-- Projeto Android Gradle com alvo `arm64-v8a`.
-- Aplicativo Kotlin de diagnóstico.
-- Biblioteca C++ mínima via JNI.
-- Workflow GitHub Actions `.github/workflows/android-apk.yml` para compilar e publicar o APK de depuração como artefato.
-- Nenhum arquivo de jogo, ISO ou asset proprietário incluído.
+- [x] Aplicativo Android Kotlin/Gradle com alvo `arm64-v8a`.
+- [x] Biblioteca C++ JNI mínima e diagnóstico exibido na tela.
+- [x] Seletor de arquivos Android para importar a imagem do jogo.
+- [x] Cópia para armazenamento privado com progresso e verificação de tamanho + SHA-256.
+- [x] Submódulo `upstream/sotc-vibe-pc` fixado no commit da tag `v0.1.0-preview.1`, incluindo submódulos recursivos no CI.
+- [x] GitHub Actions que prepara o SDK/NDK, compila o APK e publica o artefato.
+- [x] Auditoria automática do código upstream publicada separadamente como `Android-port-audit`.
+- [x] ISO, assets, arquivos gerados do jogo e saves excluídos do Git.
 
-## Próximo trabalho de engenharia
+## Bloqueios antes de gameplay
 
-1. Gerar uma matriz de dependências e licenças do runtime PS2Recomp.
-2. Separar as ferramentas host de geração do código recompilado do runtime Android.
-3. Compilar o runtime em Clang/NDK e resolver dependências Windows/x86.
-4. Criar o adaptador Android para a engine e renderização.
-5. Validar boot real com arquivos do usuário e controles.
+1. O upstream não inclui `Port/generated/`; seus arquivos C++ são produzidos de uma ISO suportada.
+2. As ferramentas de geração atualmente assumem executáveis `.exe` e scripts `.bat`; é preciso tornar a geração executável no host Linux do CI.
+3. O runtime e o renderer ainda têm chamadas/flags de Windows/MSVC e caminhos x86 SIMD a adaptar para ARM64.
+4. O renderer GS depende de caminhos gráficos específicos e precisa de uma implementação Android correta; o launcher não deve declarar sucesso de jogo só por desenhar um frame.
+5. Ainda faltam a plataforma de áudio/entrada Android e os controles de toque integrados ao runtime.
 
-## Compilação de teste
+## Verificação
 
-Abra **Actions → Android APK → Run workflow**. Baixe o artefato `ShadowColossusAndroid-debug-apk` ao terminar.
-
-O APK inicial só valida a instalação e a ponte JNI, não executa o jogo.
+- Workflow: [Android APK](https://github.com/Ph04/ShadowColossusAndroid/actions/workflows/android-apk.yml)
+- Relatório da CI: artefato `Android-port-audit`
+- Critério de sucesso atual: APK de diagnóstico compila. Isso não significa que o motor do jogo funciona.
