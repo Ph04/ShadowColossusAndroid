@@ -79,6 +79,15 @@ jobs:
       - name: Build APK
         run: gradle --no-daemon --stacktrace :app:assembleDebug
 
+      - name: Verify packaged native libraries
+        shell: bash
+        run: |
+          set -eu
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          unzip -l "$APK" | grep -q 'lib/arm64-v8a/libsotc_android_touch.so'
+          unzip -l "$APK" | grep -q 'lib/arm64-v8a/libps2EntryRunner.so'
+          echo "Touch input and NativeActivity runtime libraries are present in the APK."
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:

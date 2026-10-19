@@ -27,7 +27,7 @@ A ISO, assets, fontes C++ geradas e saves são excluídos do Git.
 
 ## Compilar localmente
 
-Requisitos: JDK 17, Android SDK API 35, Android NDK `28.2.13676358`, CMake `3.22.1` e Gradle `8.9`.
+Requisitos: Python 3.10+, JDK 17, Android SDK API 35, Android NDK `28.2.13676358`, CMake `3.22.1` e Gradle `8.9`. Python também é usado pelo CMake para aplicar os hooks Android de entrada e diagnóstico ao checkout local dos submódulos.
 
 ```sh
 gradle --no-daemon :app:assembleDebug

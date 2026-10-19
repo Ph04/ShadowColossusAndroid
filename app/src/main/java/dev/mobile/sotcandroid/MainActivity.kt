@@ -62,7 +62,7 @@ class MainActivity : ComponentActivity() {
         }, matchWidthWrap())
 
         content.addView(TextView(this).apply {
-            text = "ANDROID ARM64 · PORTE EM DESENVOLVIMENTO"
+            text = "PRÉVIA 0.2 · ANDROID ARM64"
             textSize = 12f
             gravity = Gravity.CENTER
             setPadding(0, dp(8), 0, dp(20))
