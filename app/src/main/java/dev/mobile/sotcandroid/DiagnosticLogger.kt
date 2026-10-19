@@ -16,8 +16,8 @@ import java.util.zip.ZipFile
 
 /**
  * Diagnostic helper shared by the launcher and ISO import worker.
- * The launcher only checks the ISO size; the PC generation pipeline authenticates
- * the boot ELF and module hashes. The report explicitly distinguishes those steps.
+ * The launcher checks the full-disc SHA-256 before allowing play; native ELF/module
+ * validation remains an independent runtime check.
  */
 object DiagnosticLogger {
     private const val TAG = "SOTC_DIAG"
@@ -133,7 +133,9 @@ object DiagnosticLogger {
             appendLine("iso_bytes=" + isoBytes)
             appendLine("iso_expected_bytes=" + expectedIsoBytes)
             appendLine("iso_exact_size_match=" + (isoExists && isoBytes == expectedIsoBytes))
-            appendLine("iso_content_validation=NOT_DONE_BY_LAUNCHER; size check is not a hash/module validation")
+            appendLine("iso_sha256_expected=" + IsoIntegrity.EXPECTED_ISO_SHA256)
+            appendLine("iso_sha256_verified=" + IsoIntegrity.isVerified(isoFile))
+            appendLine("iso_content_validation=" + if (IsoIntegrity.isVerified(isoFile)) "launcher_verified_full_file_sha256_and_size" else "not_verified_or_marker_stale")
             appendLine("engine_available=" + nativeEngine)
             appendLine("--- native_runtime_status ---")
             appendLine(runtime)

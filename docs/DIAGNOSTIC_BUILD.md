@@ -22,7 +22,7 @@ A CI também gera um APK de scaffold para diagnóstico, mas ele **não inclui a 
 
 Instale-o, importe a ISO novamente e toque em **Gerar e compartilhar diagnóstico completo**. O relatório inclui:
 - modelo do aparelho, Android, ABI, memória e espaço livre;
-- tamanho e presença da ISO privada;
+- tamanho, presença e verificação SHA-256 da ISO privada;
 - estado da engine e informações registradas pela ponte JNI;
 - presença dos arquivos .so nativos;
 - eventos do launcher e o trecho mais recente do log de boot.
@@ -36,5 +36,8 @@ Se **a geração falhar no PC**, envie o arquivo sotc-diagnostic-*.log; ele é o
 Revise os caminhos locais e os detalhes do aparelho antes de compartilhar. Não envie a ISO nem arquivos extraídos do jogo.
 
 ## Limite importante
+
+O launcher agora calcula o SHA-256 completo durante a importação e também valida imagens antigas em segundo plano, mostrando progresso por bytes lidos. Isso valida a edição da ISO suportada, mas não substitui os checks de boot ELF/módulos do runtime.
+
 
 A build de diagnóstico melhora a coleta de evidências; ela não corrige automaticamente uma falha da ferramenta ou do renderizador. O APK da CI é apenas um scaffold de teste, não um jogo pronto. Somente um APK construído depois da geração local poderá confirmar se a engine pré-compilada está integrada; ainda será necessário testar boot e renderização no aparelho.

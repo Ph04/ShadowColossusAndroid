@@ -15,10 +15,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.security.MessageDigest
 
 class MainActivity : ComponentActivity() {
     companion object {
-        private const val EXPECTED_ISO_BYTES = 4_635_918_336L
+        private const val EXPECTED_ISO_BYTES = IsoIntegrity.EXPECTED_ISO_BYTES
         private const val COPY_BUFFER_BYTES = 1024 * 1024
         private const val PROGRESS_STEP_BYTES = 16L * 1024 * 1024
 
@@ -38,6 +39,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var importButton: Button
     private lateinit var playButton: Button
     private lateinit var engineModeStatus: TextView
+
+    @Volatile private var isoImportRunning = false
+    @Volatile private var isoValidationRunning = false
+    @Volatile private var failedValidationForMtime: Long? = null
 
     private val isoPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(::importIso)
@@ -71,7 +76,7 @@ class MainActivity : ComponentActivity() {
         }, matchWidthWrap())
 
         content.addView(TextView(this).apply {
-            text = "Importe sua própria ISO PAL europeia SCES-53326 v1.00. O motor ARM64 precisa estar pré-compilado no APK; o telefone não recompila o jogo."
+            text = "Importe sua própria ISO PAL europeia SCES-53326 v1.00. O launcher valida o tamanho e o SHA-256; o motor ARM64 precisa estar pré-compilado no APK."
             textSize = 15f
             gravity = Gravity.CENTER
         }, matchWidthWrap())
@@ -159,7 +164,7 @@ class MainActivity : ComponentActivity() {
         }, matchWidthWrap().apply { topMargin = dp(12) })
 
         content.addView(TextView(this).apply {
-            text = "A ISO fica no armazenamento privado. As builds automáticas de teste não incluem a engine específica do jogo; ela precisa estar compilada e ligada ao APK antes da instalação."
+            text = "A ISO fica no armazenamento privado. O launcher verifica o SHA-256 durante a cópia e só aceita a versão PAL esperada. As builds automáticas de teste ainda não incluem a engine específica do jogo."
             textSize = 13f
             setPadding(0, dp(20), 0, 0)
         }, matchWidthWrap())
@@ -169,6 +174,7 @@ class MainActivity : ComponentActivity() {
         refreshIsoStatus()
         refreshRuntimeStatus()
         refreshLaunchButton()
+        validateExistingIsoIfNeeded()
     }
 
     override fun onResume() {
@@ -176,16 +182,19 @@ class MainActivity : ComponentActivity() {
         if (::isoStatus.isInitialized) {
             refreshIsoStatus()
             refreshLaunchButton()
+            validateExistingIsoIfNeeded()
         }
     }
 
     private fun importIso(uri: android.net.Uri) {
         DiagnosticLogger.event(this, "iso_import_started", "uri_scheme=${uri.scheme ?: "unknown"}")
+        isoImportRunning = true
+        failedValidationForMtime = null
         importButton.isEnabled = false
         playButton.isEnabled = false
         progressBar.progress = 0
         progressBar.isIndeterminate = true
-        isoStatus.text = "Preparando importação de aproximadamente 4,64 GB. Mantenha espaço livre suficiente."
+        isoStatus.text = "Preparando importação e validação SHA-256 de aproximadamente 4,64 GB."
 
         Thread {
             val folder = File(filesDir, "game")
@@ -196,7 +205,7 @@ class MainActivity : ComponentActivity() {
                 }
                 val stat = StatFs(filesDir.absolutePath)
                 val requiredSpace = EXPECTED_ISO_BYTES + 128L * 1024 * 1024
-                DiagnosticLogger.event(this, "iso_space_check", "available_bytes=${stat.availableBytes}; required_bytes=$requiredSpace")
+                DiagnosticLogger.event(this@MainActivity, "iso_space_check", "available_bytes=${stat.availableBytes}; required_bytes=$requiredSpace")
                 if (stat.availableBytes < requiredSpace) {
                     throw IOException("Espaço insuficiente. Libere pelo menos 4,76 GB no armazenamento interno do aplicativo.")
                 }
@@ -204,6 +213,7 @@ class MainActivity : ComponentActivity() {
                 partial.delete()
                 var total = 0L
                 var lastReported = 0L
+                val digest = MessageDigest.getInstance("SHA-256")
                 val input = contentResolver.openInputStream(uri)
                     ?: throw IOException("O Android não conseguiu abrir o arquivo selecionado.")
 
@@ -218,16 +228,17 @@ class MainActivity : ComponentActivity() {
                             if (total > EXPECTED_ISO_BYTES) {
                                 throw IOException("O arquivo é maior que a imagem suportada.")
                             }
+                            digest.update(buffer, 0, count)
                             output.write(buffer, 0, count)
 
                             if (total - lastReported >= PROGRESS_STEP_BYTES) {
                                 lastReported = total
-                                DiagnosticLogger.event(this@MainActivity, "iso_copy_progress", "bytes=$total; expected_bytes=$EXPECTED_ISO_BYTES")
+                                DiagnosticLogger.event(this@MainActivity, "iso_copy_progress", "bytes=$total; expected_bytes=$EXPECTED_ISO_BYTES; sha256_in_progress=true")
                                 val progress = (total * 1000L / EXPECTED_ISO_BYTES).toInt().coerceIn(0, 1000)
                                 runOnUiThread {
                                     progressBar.isIndeterminate = false
                                     progressBar.progress = progress
-                                    isoStatus.text = "Copiando ISO: ${(total * 100L / EXPECTED_ISO_BYTES).coerceIn(0, 100)}% — ${formatGiB(total)} / 4,64 GB"
+                                    isoStatus.text = "Copiando e verificando ISO: ${(total * 100L / EXPECTED_ISO_BYTES).coerceIn(0, 100)}% — ${formatGiB(total)} / 4,64 GB"
                                 }
                             }
                         }
@@ -239,7 +250,12 @@ class MainActivity : ComponentActivity() {
                     throw IOException("Tamanho incorreto: ${total} bytes; esperado ${EXPECTED_ISO_BYTES} bytes.")
                 }
 
-                DiagnosticLogger.event(this, "iso_copy_size_valid", "copied_bytes=$total")
+                val actualSha256 = IsoIntegrity.toHex(digest.digest())
+                DiagnosticLogger.event(this@MainActivity, "iso_sha256_calculated", "sha256=$actualSha256; expected=${IsoIntegrity.EXPECTED_ISO_SHA256}")
+                if (!actualSha256.equals(IsoIntegrity.EXPECTED_ISO_SHA256, ignoreCase = true)) {
+                    throw IOException("O arquivo tem o tamanho esperado, mas o SHA-256 não corresponde à ISO PAL SCES-53326 v1.00 suportada. Selecione a imagem correta.")
+                }
+
                 val destination = isoFile
                 if (destination.exists() && !destination.delete()) {
                     throw IOException("Não foi possível substituir a ISO anterior.")
@@ -247,24 +263,82 @@ class MainActivity : ComponentActivity() {
                 if (!partial.renameTo(destination)) {
                     throw IOException("A cópia terminou, mas não foi possível finalizar a importação.")
                 }
+                IsoIntegrity.writeVerifiedMarker(destination, actualSha256)
 
-                DiagnosticLogger.event(this, "iso_import_completed", "relative_path=game/SCES-53326.iso; bytes=$total")
+                DiagnosticLogger.event(this, "iso_import_completed", "relative_path=game/SCES-53326.iso; bytes=$total; sha256_verified=true")
                 runOnUiThread {
+                    isoImportRunning = false
                     progressBar.isIndeterminate = false
                     progressBar.progress = 1000
-                    isoStatus.text = "ISO copiada. A versão exata será verificada pelo runtime ao iniciar o jogo."
                     importButton.isEnabled = true
                     refreshIsoStatus()
                     refreshLaunchButton()
                 }
             } catch (error: Exception) {
-                DiagnosticLogger.event(this, "iso_import_failed", "type=${error.javaClass.name}; message=${error.message ?: "no-message"}")
+                DiagnosticLogger.event(this@MainActivity, "iso_import_failed", "type=${error.javaClass.name}; message=${error.message ?: "no-message"}")
                 partial.delete()
                 runOnUiThread {
+                    isoImportRunning = false
                     progressBar.isIndeterminate = false
                     progressBar.progress = 0
-                    isoStatus.text = "Importação não concluída: ${error.message ?: error.javaClass.simpleName}"
+                    isoStatus.text = "Importação/validação não concluída: ${error.message ?: error.javaClass.simpleName}"
                     importButton.isEnabled = true
+                    refreshLaunchButton()
+                }
+            }
+        }.start()
+    }
+
+    /**
+     * Validates an ISO imported by an older build. The first scan has byte-based progress;
+     * a private marker bound to file size and modification time avoids rescanning each launch.
+     */
+    private fun validateExistingIsoIfNeeded() {
+        if (!::isoStatus.isInitialized || isoImportRunning || isoValidationRunning) return
+        if (!isoFile.isFile || isoFile.length() != EXPECTED_ISO_BYTES || IsoIntegrity.isVerified(isoFile)) return
+        if (failedValidationForMtime == isoFile.lastModified()) return
+
+        isoValidationRunning = true
+        importButton.isEnabled = false
+        progressBar.isIndeterminate = false
+        progressBar.progress = 0
+        isoStatus.text = "ISO encontrada. Validando SHA-256 antes de liberar a execução…"
+        DiagnosticLogger.event(this, "iso_sha256_validation_started", "bytes=${isoFile.length()}")
+
+        Thread {
+            try {
+                val actualSha256 = IsoIntegrity.calculateSha256(isoFile) { processed, total ->
+                    DiagnosticLogger.event(this@MainActivity, "iso_sha256_validation_progress", "bytes=$processed; total_bytes=$total")
+                    val progress = if (total > 0) (processed * 1000L / total).toInt().coerceIn(0, 1000) else 0
+                    runOnUiThread {
+                        progressBar.isIndeterminate = false
+                        progressBar.progress = progress
+                        isoStatus.text = "Validando SHA-256 da ISO: ${progress / 10}%"
+                    }
+                }
+                if (!actualSha256.equals(IsoIntegrity.EXPECTED_ISO_SHA256, ignoreCase = true)) {
+                    throw IOException("O SHA-256 não corresponde à ISO PAL SCES-53326 v1.00 suportada. Importe a imagem correta.")
+                }
+                IsoIntegrity.writeVerifiedMarker(isoFile, actualSha256)
+                DiagnosticLogger.event(this@MainActivity, "iso_sha256_validation_completed", "sha256=$actualSha256")
+                runOnUiThread {
+                    isoValidationRunning = false
+                    failedValidationForMtime = null
+                    progressBar.isIndeterminate = false
+                    progressBar.progress = 1000
+                    importButton.isEnabled = true
+                    refreshIsoStatus()
+                    refreshLaunchButton()
+                }
+            } catch (error: Exception) {
+                DiagnosticLogger.event(this@MainActivity, "iso_sha256_validation_failed", "type=${error.javaClass.name}; message=${error.message ?: "no-message"}")
+                runOnUiThread {
+                    isoValidationRunning = false
+                    failedValidationForMtime = isoFile.lastModified()
+                    progressBar.isIndeterminate = false
+                    progressBar.progress = 0
+                    importButton.isEnabled = true
+                    isoStatus.text = "ISO não validada: ${error.message ?: error.javaClass.simpleName}"
                     refreshLaunchButton()
                 }
             }
@@ -273,11 +347,18 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshIsoStatus() {
         val matchesSize = isoFile.isFile && isoFile.length() == EXPECTED_ISO_BYTES
-        DiagnosticLogger.event(this, "iso_status", "exists=${isoFile.isFile}; bytes=${if (isoFile.isFile) isoFile.length() else 0L}; exact_size_match=$matchesSize; content_hashes=not_checked")
-        isoStatus.text = if (matchesSize) {
-            "Imagem presente no armazenamento privado (${formatGiB(isoFile.length())} GiB). O runtime verificará boot ELF e módulos antes de executar."
-        } else {
-            "Nenhuma imagem com o tamanho esperado foi importada."
+        val hashVerified = matchesSize && IsoIntegrity.isVerified(isoFile)
+        DiagnosticLogger.event(
+            this,
+            "iso_status",
+            "exists=${isoFile.isFile}; bytes=${if (isoFile.isFile) isoFile.length() else 0L}; exact_size_match=$matchesSize; sha256_verified=$hashVerified",
+        )
+        isoStatus.text = when {
+            !matchesSize -> "Nenhuma imagem com o tamanho esperado foi importada."
+            hashVerified -> "ISO validada: tamanho e SHA-256 correspondem à versão PAL SCES-53326 v1.00."
+            isoValidationRunning -> "ISO encontrada. Validando SHA-256…"
+            failedValidationForMtime == isoFile.lastModified() -> "A ISO não corresponde à versão esperada. Selecione a imagem correta."
+            else -> "ISO presente (${formatGiB(isoFile.length())} GiB). A validação SHA-256 está pendente."
         }
     }
 
@@ -297,12 +378,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshLaunchButton() {
-        val hasIso = isoFile.isFile && isoFile.length() == EXPECTED_ISO_BYTES
+        val hasExpectedSize = isoFile.isFile && isoFile.length() == EXPECTED_ISO_BYTES
+        val hasVerifiedIso = hasExpectedSize && IsoIntegrity.isVerified(isoFile)
         val hasEngine = try { nativeEngineAvailable() } catch (_: UnsatisfiedLinkError) { false }
-        playButton.isEnabled = hasIso && hasEngine
-        DiagnosticLogger.event(this, "launch_preflight", "iso_size_ok=$hasIso; native_engine_available=$hasEngine; enabled=${playButton.isEnabled}")
+        playButton.isEnabled = hasVerifiedIso && hasEngine
+        DiagnosticLogger.event(
+            this,
+            "launch_preflight",
+            "iso_size_ok=$hasExpectedSize; iso_sha256_verified=$hasVerifiedIso; native_engine_available=$hasEngine; enabled=${playButton.isEnabled}",
+        )
         playButton.text = when {
-            !hasIso -> "Importe a ISO para continuar"
+            !hasExpectedSize -> "Importe a ISO correta para continuar"
+            !hasVerifiedIso && isoValidationRunning -> "Validando SHA-256 da ISO…"
+            !hasVerifiedIso -> "Aguardando validação SHA-256"
             !hasEngine -> "Jogo indisponível — engine pré-compilada pendente"
             else -> "Iniciar Shadow of the Colossus"
         }
@@ -312,6 +400,13 @@ class MainActivity : ComponentActivity() {
         DiagnosticLogger.event(this, "launch_requested", "iso_exists=${isoFile.isFile}; iso_bytes=${if (isoFile.isFile) isoFile.length() else 0L}")
         if (!isoFile.isFile || isoFile.length() != EXPECTED_ISO_BYTES) {
             DiagnosticLogger.event(this, "launch_blocked", "reason=iso_missing_or_wrong_size")
+            refreshLaunchButton()
+            return
+        }
+        if (!IsoIntegrity.isVerified(isoFile)) {
+            DiagnosticLogger.event(this, "launch_blocked", "reason=iso_sha256_not_verified")
+            Toast.makeText(this, "A ISO ainda não foi validada por SHA-256.", Toast.LENGTH_LONG).show()
+            validateExistingIsoIfNeeded()
             refreshLaunchButton()
             return
         }

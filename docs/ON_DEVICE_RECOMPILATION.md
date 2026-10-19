@@ -35,7 +35,7 @@ A UI distingue duas coisas independentes:
 - **Runtime PS2Recomp presente**: bibliotecas gerais e runner compilados.
 - **Engine específica do jogo presente**: fontes C++ geradas ligadas ao APK.
 
-Quando a engine específica está ausente, o botão Jogar permanece bloqueado. Não há uma barra de “recompilação no celular”, porque a geração e compilação acontecem antes de empacotar o aplicativo. A importação atual verifica o tamanho da ISO; a validação criptográfica de versão continua sendo realizada pelo linker/runtime upstream quando seus checks de ELF e módulos forem executados.
+Quando a engine específica está ausente, o botão Jogar permanece bloqueado. Não há uma barra de “recompilação no celular”, porque a geração e compilação acontecem antes de empacotar o aplicativo. A importação verifica o tamanho e o SHA-256 completo da ISO, e o runtime mantém os checks independentes de boot ELF e módulos.
 
 ## Por que a CI não entrega o jogo pronto
 
