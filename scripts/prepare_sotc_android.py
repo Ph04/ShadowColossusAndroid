@@ -252,7 +252,7 @@ def build_android_apk(project_root: Path, build_type: str) -> Path:
         raise BuildError("Gradle não foi encontrado no PATH. Instale Gradle 8.9 ou use Android Studio.")
     task = ":app:assembleDebug" if build_type == "debug" else ":app:assembleRelease"
     run([gradle, "--no-daemon", "--max-workers=1", "--stacktrace", task], cwd=project_root)
-    apk_name = "app-debug.apk" if build_type == "debug" else "app-release-unsigned.apk"
+    apk_name = "app-debug.apk" if build_type == "debug" else "app-release.apk"
     apk = project_root / "app" / "build" / "outputs" / "apk" / build_type / apk_name
     if not apk.is_file():
         candidates = list((project_root / "app" / "build" / "outputs" / "apk" / build_type).glob("*.apk"))
@@ -260,8 +260,8 @@ def build_android_apk(project_root: Path, build_type: str) -> Path:
             raise BuildError("A tarefa Gradle terminou, mas nenhum APK foi encontrado.")
         apk = candidates[0]
     print(f"APK gerado: {apk}", flush=True)
-    if build_type == "release":
-        print("A build release é unsigned; assine-a antes de instalar.", flush=True)
+    if build_type == "release" and "unsigned" in apk.name:
+        print("Atenção: o Gradle gerou um APK release sem assinatura; ele precisa ser assinado antes de instalar.", flush=True)
     return apk
 
 
@@ -288,7 +288,7 @@ def main() -> int:
         "--codegen-only", action="store_true",
         help="gera e valida as fontes locais, mas não executa o build Gradle do APK",
     )
-    parser.add_argument("--build-type", choices=("debug", "release"), default="debug")
+    parser.add_argument("--build-type", choices=("debug", "release"), default="release", help="build Release otimizada por padrão; use debug para diagnóstico")
     parser.add_argument(
         "--check-source-tree", action="store_true",
         help="valida os arquivos/submódulos necessários sem exigir ISO nem executar geração",

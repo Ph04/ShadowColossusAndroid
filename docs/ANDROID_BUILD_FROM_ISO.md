@@ -19,7 +19,7 @@ No Linux:
 
     python3 scripts/prepare_sotc_android.py --iso "/caminho/SCES-53326.iso" --jobs 1
 
-O script compila as ferramentas host **ps2_recomp** e **vu1_recomp**, valida o boot ELF e os módulos usando o verificador upstream, gera as fontes em **upstream/sotc-vibe-pc/Port/generated/**, verifica os pontos de relocação e compila **:app:assembleDebug**. Para o alvo VU1, o script habilita o subprojeto upstream que define `vu1_recomp` e mantém os testes não relacionados desabilitados. A geração é feita no computador, não no Android Runtime.
+O script compila as ferramentas host **ps2_recomp** e **vu1_recomp**, valida o boot ELF e os módulos usando o verificador upstream, gera as fontes em **upstream/sotc-vibe-pc/Port/generated/**, verifica os pontos de relocação e compila **:app:assembleRelease** (otimizada e assinada com a chave de debug padrão para instalação local). Use `--build-type debug` apenas para investigar erros, pois o código nativo terá menos otimizações. Para o alvo VU1, o script habilita o subprojeto upstream que define `vu1_recomp` e mantém os testes não relacionados desabilitados. A geração é feita no computador, não no Android Runtime.
 
 Para preparar as fontes sem compilar o APK:
 

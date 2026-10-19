@@ -45,6 +45,9 @@ android {
         }
         release {
             isMinifyEnabled = false
+            // Sign local sideload builds with the standard debug keystore.
+            // This is for device testing, not for Play Store publication.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
