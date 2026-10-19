@@ -107,6 +107,11 @@ NAMESPACE_BLOCK = '''namespace
 MAIN_ANCHOR = '''int main(int argc, char *argv[])
 {
 #if defined(_WIN32)'''
+MAIN_ANDROID_CLEANUP = '''#if defined(__ANDROID__)
+    redirectStdioToLogcat();
+    [[maybe_unused]] const ScopedSotcLogcatCleanup logcatCleanup;
+#endif
+#if defined(_WIN32)'''
 MAIN_BLOCK = '''int main(int argc, char *argv[])
 {
 #if defined(__ANDROID__)
@@ -142,7 +147,7 @@ def patch(source: Path) -> None:
         if "ScopedSotcLogcatCleanup logcatCleanup;" not in text:
             if old_main not in text:
                 raise SystemExit(f"Não reconheci o ponto de saída do logger em {source}; nenhum patch foi gravado.")
-            text = text.replace(old_main, MAIN_BLOCK, 1)
+            text = text.replace(old_main, MAIN_ANDROID_CLEANUP, 1)
         source.write_text(text, encoding="utf-8")
         print(f"Hook Android atualizado com log local: {source}")
         return
@@ -176,6 +181,7 @@ def self_test() -> None:
     assert "sotc-boot.log" in changed
     assert "ScopedSotcLogcatCleanup" in changed
     assert changed.count("redirectStdioToLogcat();") == 1
+    assert "ScopedSotcLogcatCleanup logcatCleanup;" in MAIN_ANDROID_CLEANUP
 
     old_patch = (
         "namespace\n{\n#if defined(__ANDROID__)\n"

@@ -174,11 +174,34 @@ def generate_game_sources(upstream: Path, iso: Path, host_build: Path, jobs: int
         if not capture_dir.is_dir():
             raise BuildError(f"A captura de microprogramas VU1 não foi criada: {capture_dir}")
         run([vu1_recomp, capture_dir, vu1_staging])
+        if not any(item.is_file() and item.suffix == ".cpp" and item.stat().st_size > 0 for item in vu1_staging.iterdir()):
+            raise BuildError(
+                "O recompilador VU1 não produziu código estático. "
+                "Corrija a geração VU1 ou use --skip-vu1 para testar com o interpretador."
+            )
 
     if not (staging / "register_functions.cpp").is_file():
         raise BuildError(
             "O recompilador não criou register_functions.cpp. "
             "O APK não será marcado como pronto; confira o log da ferramenta host."
+        )
+
+    generated_cpp = [
+        item for item in staging.glob("*.cpp")
+        if item.name != "register_functions.cpp" and item.stat().st_size > 0
+    ]
+    if not generated_cpp:
+        raise BuildError(
+            "O recompilador criou a tabela de registro, mas nenhum arquivo C++ de jogo. "
+            "A geração está incompleta; o APK não será compilado."
+        )
+    required_headers = ("ps2_recompiled_functions.h", "ps2_recompiled_stubs.h")
+    missing_headers = [name for name in required_headers if not (staging / name).is_file()]
+    if missing_headers:
+        raise BuildError(
+            "O recompilador não produziu os cabeçalhos necessários: "
+            + ", ".join(missing_headers)
+            + ". A geração está incompleta; confira a versão do PS2Recomp."
         )
 
     if not skip_vu1:
