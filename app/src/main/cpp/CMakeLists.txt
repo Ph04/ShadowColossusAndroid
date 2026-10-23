@@ -49,6 +49,20 @@ if(NOT SOTC_TOUCH_PATCH_RESULT EQUAL 0)
     message(FATAL_ERROR "Could not apply the Android touch bridge to Celosia's PS2 pad poller.")
 endif()
 
+set(SOTC_ANDROID_PATH_PATCH "${SOTC_REPOSITORY_ROOT}/scripts/patch_celosia_android_paths.py")
+set(SOTC_CELOSIA_RUNTIME_SOURCE "${SOTC_CELOSIA_SOURCE}/PS2Recomp/ps2xRuntime/src/lib/ps2_runtime.cpp")
+if(NOT EXISTS "${SOTC_ANDROID_PATH_PATCH}" OR NOT EXISTS "${SOTC_CELOSIA_RUNTIME_SOURCE}")
+    message(FATAL_ERROR "Celosia Android persistent memory-card path patch prerequisites are missing.")
+endif()
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" "${SOTC_ANDROID_PATH_PATCH}" --source "${SOTC_CELOSIA_RUNTIME_SOURCE}"
+    RESULT_VARIABLE SOTC_PATH_PATCH_RESULT
+    COMMAND_ECHO STDOUT
+)
+if(NOT SOTC_PATH_PATCH_RESULT EQUAL 0)
+    message(FATAL_ERROR "Could not route the Celosia memory-card root to persistent app storage.")
+endif()
+
 # The JNI bridge and the game runtime share one process-wide touch state.
 add_library(sotc_android_touch SHARED android_touch_input.cpp)
 target_include_directories(sotc_android_touch PUBLIC "${CMAKE_CURRENT_LIST_DIR}")
