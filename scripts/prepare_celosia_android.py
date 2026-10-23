@@ -18,6 +18,7 @@ REQUIRED_FILES = (
     "PS2Recomp/CMakeLists.txt",
     "PS2Recomp/ps2xRuntime/CMakeLists.txt",
     "PS2Recomp/ps2xRuntime/src/lib/ps2_pad.cpp",
+    "PS2Recomp/ps2xRuntime/src/main.cpp",
     "PS2Recomp/ps2xRuntime/src/lib/ps2_runtime.cpp",
     "game/scus.toml",
     "game/overrides/sotc_overrides.cpp",
@@ -103,6 +104,7 @@ def main() -> int:
         validate_tree(celosia)
         run([sys.executable, str(root / "scripts" / "patch_celosia_android_input.py"), "--self-test"])
         run([sys.executable, str(root / "scripts" / "patch_celosia_android_paths.py"), "--self-test"])
+        run([sys.executable, str(root / "scripts" / "patch_celosia_android_startup.py"), "--self-test"])
         if args.check_source_tree:
             print(f"Celosia source tree is valid: {celosia}")
             return 0
