@@ -14,11 +14,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.zip.ZipFile
 
-/**
- * Diagnostic helper shared by the launcher and ISO import worker.
- * The launcher checks the full-disc SHA-256 before allowing play; native ELF/module
- * validation remains an independent runtime check.
- */
+/** Diagnostic helper shared by the launcher and ISO import worker. */
 object DiagnosticLogger {
     private const val TAG = "SOTC_DIAG"
 
@@ -39,20 +35,17 @@ object DiagnosticLogger {
 
     fun shareReport(
         activity: Activity,
-        isoFile: File,
-        expectedIsoBytes: Long,
+        gameFolder: File,
         runtimeStatus: () -> String,
         engineAvailable: () -> Boolean,
         nativeBuildReport: () -> String,
     ) {
         event(activity, "diagnostic_report_requested")
-        val report = buildReport(
-            activity, isoFile, expectedIsoBytes, runtimeStatus, engineAvailable, nativeBuildReport,
-        )
+        val report = buildReport(activity, gameFolder, runtimeStatus, engineAvailable, nativeBuildReport)
         event(activity, "diagnostic_report_ready", "characters=" + report.length)
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, "Shadow of the Colossus Android — relatório completo de diagnóstico")
+            putExtra(Intent.EXTRA_SUBJECT, "Shadow of the Colossus Android — diagnóstico Celosia USA")
             putExtra(Intent.EXTRA_TEXT, report.takeLast(180_000))
         }
         activity.startActivity(Intent.createChooser(send, "Compartilhar relatório de diagnóstico"))
@@ -60,8 +53,7 @@ object DiagnosticLogger {
 
     private fun buildReport(
         context: Context,
-        isoFile: File,
-        expectedIsoBytes: Long,
+        gameFolder: File,
         runtimeStatus: () -> String,
         engineAvailable: () -> Boolean,
         nativeBuildReport: () -> String,
@@ -84,23 +76,27 @@ object DiagnosticLogger {
         }.getOrElse {
             "APK_NATIVE_LIBRARY_CHECK_ERROR: " + it.javaClass.name + ": " + it.message
         }
-        val nativeEngine = safe("native_engine_available") { engineAvailable().toString() }
+        val engine = safe("native_engine_available") { engineAvailable().toString() }
         val runtime = safe("native_runtime_status", runtimeStatus)
         val nativeReport = safe("native_build_report", nativeBuildReport)
-        val isoExists = isoFile.isFile
-        val isoBytes = if (isoExists) isoFile.length() else 0L
-        val appLog = readTail(File(File(context.filesDir, "logs"), "sotc-app.log"), 45_000)
-        val bootLog = readTail(File(File(context.filesDir, "logs"), "sotc-boot.log"), 70_000)
-        val privateEntries = context.filesDir.listFiles()?.sortedBy { it.name }?.joinToString("\n") { item ->
-            val kind = if (item.isDirectory) "directory" else "file"
-            val bytes = if (item.isFile) item.length() else -1L
-            item.name + ": " + kind + "; bytes=" + bytes
-        } ?: "(directory listing failed)"
-        val logsEntries = File(context.filesDir, "logs").listFiles()?.sortedBy { it.name }?.joinToString("\n") { item ->
+        val marker = IsoIntegrity.readMarker(gameFolder)
+        val disc = File(gameFolder, IsoIntegrity.DISC_DIRECTORY)
+        val importantFiles = listOf("SCUS_974.72", "KERNEL.XFF", "MANAGER.XFF", "GAMECORE.XFF", "SYSTEM.CNF")
+        val fileInventory = importantFiles.joinToString("\n") { name ->
+            val file = File(disc, name)
+            name + ": exists=" + file.isFile + "; bytes=" + (if (file.isFile) file.length() else 0L)
+        }
+        val dataInventory = gameFolder.listFiles()?.sortedBy { it.name }?.joinToString("\n") { item ->
+            item.name + ": " + (if (item.isDirectory) "directory" else "file") +
+                "; bytes=" + (if (item.isFile) item.length() else -1L)
+        } ?: "(game directory absent)"
+        val logsDirectory = File(context.filesDir, "logs")
+        val logsEntries = logsDirectory.listFiles()?.sortedBy { it.name }?.joinToString("\n") { item ->
             item.name + ": exists=" + item.isFile + "; bytes=" + (if (item.isFile) item.length() else 0L)
         } ?: "(logs directory absent)"
+        val appLog = readTail(File(logsDirectory, "sotc-app.log"), 45_000)
+        val bootLog = readTail(File(logsDirectory, "sotc-boot.log"), 70_000)
         val packageInfo = runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
-        val version = packageInfo?.versionName ?: "unknown"
         val availableMemory = if (memory.availMem > 0) memory.availMem else -1L
         val totalMemory = if (memory.totalMem > 0) memory.totalMem else -1L
         val buildVariant = when {
@@ -108,18 +104,17 @@ object DiagnosticLogger {
             context.packageName.endsWith(".debug") -> "debug"
             else -> "release"
         }
-        val supportedAbis = Build.SUPPORTED_ABIS.joinToString(separator = ",")
         return buildString {
-            appendLine("SHADOW COLOSSUS ANDROID — DIAGNOSTIC REPORT v1")
+            appendLine("SHADOW COLOSSUS ANDROID — CELOSIA USA DIAGNOSTIC REPORT v2")
             appendLine("timestamp=" + timestamp())
-            appendLine("app_version=" + version)
+            appendLine("app_version=" + (packageInfo?.versionName ?: "unknown"))
             appendLine("package=" + context.packageName)
             appendLine("build_variant=" + buildVariant)
             appendLine("android_release=" + Build.VERSION.RELEASE)
             appendLine("android_sdk=" + Build.VERSION.SDK_INT)
             appendLine("manufacturer=" + Build.MANUFACTURER)
             appendLine("model=" + Build.MODEL)
-            appendLine("supported_abis=" + supportedAbis)
+            appendLine("supported_abis=" + Build.SUPPORTED_ABIS.joinToString(","))
             appendLine("native_library_dir=" + context.applicationInfo.nativeLibraryDir)
             appendLine("files_dir=" + context.filesDir.absolutePath)
             appendLine("available_storage_bytes=" + stat.availableBytes)
@@ -128,23 +123,24 @@ object DiagnosticLogger {
             appendLine("low_memory=" + memory.lowMemory)
             appendLine("runtime_heap_total=" + Runtime.getRuntime().totalMemory())
             appendLine("runtime_heap_free=" + Runtime.getRuntime().freeMemory())
-            appendLine("iso_exists=" + isoExists)
-            appendLine("iso_path=" + isoFile.absolutePath)
-            appendLine("iso_bytes=" + isoBytes)
-            appendLine("iso_expected_bytes=" + expectedIsoBytes)
-            appendLine("iso_exact_size_match=" + (isoExists && isoBytes == expectedIsoBytes))
-            appendLine("iso_sha256_expected=" + IsoIntegrity.EXPECTED_ISO_SHA256)
-            appendLine("iso_sha256_verified=" + IsoIntegrity.isVerified(isoFile))
-            appendLine("iso_content_validation=" + if (IsoIntegrity.isVerified(isoFile)) "launcher_verified_full_file_sha256_and_size" else "not_verified_or_marker_stale")
-            appendLine("engine_available=" + nativeEngine)
+            appendLine("usa_disc_structurally_verified=" + IsoIntegrity.isVerified(gameFolder))
+            appendLine("usa_disc_directory=" + disc.absolutePath)
+            appendLine("source_iso_bytes=" + (marker["source_iso_bytes"] ?: "unknown"))
+            appendLine("source_iso_sha256=" + (marker["source_iso_sha256"] ?: "unknown"))
+            appendLine("source_iso_hash_is_official_authenticity_proof=false")
+            appendLine("extracted_file_count=" + (marker["file_count"] ?: "unknown"))
+            appendLine("extracted_payload_bytes=" + (marker["extracted_bytes"] ?: "unknown"))
+            appendLine("--- required_usa_disc_files ---")
+            appendLine(fileInventory)
+            appendLine("engine_available=" + engine)
             appendLine("--- native_runtime_status ---")
             appendLine(runtime)
             appendLine("--- native_build_report ---")
             appendLine(nativeReport)
             appendLine("--- native_library_files_in_apk ---")
             appendLine(libraries)
-            appendLine("--- private_data_entries ---")
-            appendLine(privateEntries)
+            appendLine("--- private_game_data_inventory ---")
+            appendLine(dataInventory)
             appendLine("--- log_file_inventory ---")
             appendLine(logsEntries)
             appendLine("--- app_log_tail ---")

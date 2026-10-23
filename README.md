@@ -1,82 +1,70 @@
-# ShadowColossusAndroid
+# ShadowColossusAndroid — Celosia USA / Android ARM64
 
-Projeto para portar para Android ARM64 a versão recompilada de [Shadow of the Colossus para PC](https://github.com/LightVelox/sotc-vibe-pc/tree/v0.1.0-preview.1), usando [Tenkaichi3DecompAndroid](https://github.com/dfdx047/Tenkaichi3DecompAndroid) como referência de arquitetura móvel.
+Port experimental de **Shadow of the Colossus USA (SCUS-97472)** para Android, usando como base o recompiler e runtime [Celosia](https://github.com/HenryKun55/celosia) / PS2Recomp.
 
-> **Estado real: prévia 0.2 em desenvolvimento, ainda não comprovada como jogável.** O repositório agora inclui o overlay touch-screen e sua ponte de entrada nativa, o fluxo local para gerar o código do jogo e diagnóstico nativo em logcat. O APK gerado pela CI continua sem o código recompilado específico do jogo, pois esse código precisa ser gerado a partir de uma ISO do usuário e compilado localmente.
+> **Estado real:** migração de arquitetura em andamento. A base experimental já usa o layout do disco americano, inicializa a integração CMake em torno da revisão Celosia fixada e mantém a entrada touch existente conectada ao polling de controle PS2. O renderer Android e o boot do jogo recompilado ainda precisam de validação. O APK de CI é somente diagnóstico, pois não inclui o código gerado a partir da ISO de um usuário.
 
-## Código upstream fixado
+## Base fixada
 
-O projeto de PC está como submódulo em `upstream/sotc-vibe-pc`, no commit da tag `v0.1.0-preview.1`. O submódulo PS2Recomp é obtido recursivamente. Seu CMake reconhece Android, escolhe raylib para a camada de plataforma e ativa compatibilidade SIMD ARM via sse2neon. O app compila os targets de runtime necessários para validar essa base; isso ainda não equivale a executar o jogo.
+- Celosia: commit `ed1025701cfa943d7c1649d88e5175a51ff33d5e`.
+- Edição esperada: USA `SCUS-97472`; ELF de boot `SCUS_974.72`.
+- Módulos esperados no diretório raiz extraído: `KERNEL.XFF`, `MANAGER.XFF`, `GAMECORE.XFF`, além de `SYSTEM.CNF`.
+- Renderer de compatibilidade inicial: GS em software. O renderer nativo Celosia (Metal/macOS e OpenGL ES/vitaGL no PS Vita) não é um backend Android pronto.
 
-## Compilação de APK
+A base PAL original permanece na branch principal; esta migração vive em `experiment/celosia-android-us`.
 
-GitHub Actions compila o APK ARM64 em cada push, pull request ou execução manual.
+## APK de CI
 
-1. Abra **Actions → Android APK**.
-2. Execute **Run workflow** ou abra a execução iniciada pelo último commit.
-3. Baixe o artefato `ShadowColossusAndroid-debug-apk`.
-4. Baixe `Android-port-audit` para ver o relatório estático das dependências upstream.
+Abra [GitHub Actions](https://github.com/Ph04/ShadowColossusAndroid/actions) ou o [PR experimental #3](https://github.com/Ph04/ShadowColossusAndroid/pull/3). Os artefatos de CI se chamam:
 
-O APK ainda não inicia Shadow of the Colossus.
+- `ShadowColossusAndroid-celosia-usa-debug-scaffold`
+- `ShadowColossusAndroid-celosia-usa-release-scaffold`
+- `ShadowColossusAndroid-celosia-usa-diagnostic-scaffold`
 
-## Importação da ISO
+**Esses APKs são builds de diagnóstico, não jogos jogáveis.** Eles não contêm fontes C++ geradas a partir de uma ISO pessoal. Só uma compilação específica que inclua os módulos recompilados poderá testar o boot real.
 
-Na tela inicial, selecione sua própria ISO PAL europeia `SCES-53326 v1.00`. O app copia o arquivo para o armazenamento privado e valida tamanho e SHA-256 esperado para a ISO PAL SCES-53326 v1.00. O runtime ainda executa seus próprios checks de boot ELF e módulos; a validação de hash do arquivo não substitui esses checks. É necessário espaço interno livre suficiente; a ISO não é enviada ao GitHub.
+## Importar a ISO americana
 
-A ISO, assets, fontes C++ geradas e saves são excluídos do Git.
+Na tela inicial, escolha uma imagem obtida da sua própria cópia da edição USA. O importador lê a estrutura ISO-9660, procura `SYSTEM.CNF` e verifica se o boot aponta para `SCUS_974.72`. Ele exige que o boot ELF e os três módulos XFF existam e sejam não vazios, e extrai os arquivos para `files/game/disc/` dentro do armazenamento privado do app.
 
-## Recompilação no próprio celular: estado atual
+Não há tamanho ou SHA-256 oficial da ISO americana fixado aqui: o SHA-256 da imagem de origem é registrado apenas como valor de diagnóstico e **não é tratado como prova de autenticidade**. Essa validação estrutural não substitui a conferência do ELF/módulos pelo pipeline de geração Celosia.
 
-A referência [Tenkaichi3DecompAndroid](https://github.com/dfdx047/Tenkaichi3DecompAndroid) não recompila a ISO dentro do app: o código decompilado já existe no repositório e o script `port/tools/android.py` compila o motor ARM64 durante o desenvolvimento. No aparelho, o launcher verifica a imagem e copia os dados do disco para a estrutura que o motor usa.
+Depois de uma importação bem-sucedida, o arquivo temporário completo da ISO é removido para poupar espaço; ficam os arquivos extraídos e os dados privados do jogo/saves. A importação precisa de bastante espaço livre, pois mantém temporariamente a imagem e a cópia extraída ao mesmo tempo.
 
-O fluxo de Shadow of the Colossus é diferente: `ps2_recomp` gera arquivos C++ específicos a partir dos executáveis e módulos da ISO; em seguida, esses arquivos precisam ser compilados e ligados ao runtime Android. O APK atual contém o runtime, mas ainda **não inclui um gerador PS2Recomp executável no processo do app nem uma toolchain C/C++ para compilar as fontes durante a execução**.
+## Gerar código USA e compilar localmente
 
-A tela inicial ganhou uma verificação visual por etapas. Ela mede o progresso **da verificação de pré-requisitos**, identifica a ISO, o espaço livre e a ABI ARM64 e informa a ausência das ferramentas. Os 100% dessa verificação não significam que o jogo foi recompilado. O fluxo real de geração, compilação, ligação e carregamento no Android ainda precisa ser implementado.
+### Requisitos
 
-## Compilar localmente
+Git, Python 3, CMake, Ninja, compilador C/C++, `bsdtar`, `pkg-config` e Bash para a etapa host do Celosia. Para compilar o APK, instale JDK 17, Android SDK API 35, NDK `28.2.13676358`, CMake Android `3.22.1` e Gradle 8.9. No Windows, use WSL2 com a toolchain Linux.
 
-Requisitos: Python 3.10+, JDK 17, Android SDK API 35, Android NDK `28.2.13676358`, CMake `3.22.1` e Gradle `8.9`. Python também é usado pelo CMake para aplicar os hooks Android de entrada e diagnóstico ao checkout local dos submódulos.
+### Validar o checkout
 
-```sh
-gradle --no-daemon :app:assembleDebug
-```
+`python3 scripts/prepare_celosia_android.py --check-source-tree`
 
-APK: `app/build/outputs/apk/debug/app-debug.apk`.
+O helper baixa a revisão Celosia fixada para `upstream/celosia/`. Durante o build Android, cria um espelho descartável em `build/celosia-source/` para aplicar o patch de entrada touch; evita modificar a cópia upstream fixada.
 
-## Modelo escolhido: motor pré-compilado como no Budokai
+### Gerar o código a partir da sua ISO
 
-No telefone **não recompilamos a ISO**. A engine ARM64 específica do jogo precisa ser gerada e compilada antes da montagem do APK. Depois de instalar esse APK, o launcher importa a ISO do usuário e entrega seu caminho ao motor nativo. O código C++ gerado a partir da ISO não é incluído no Git.
+`python3 scripts/prepare_celosia_android.py --iso "/caminho/para/SOTC-USA.iso" --codegen-only --jobs 1`
 
-O Tenkaichi3DecompAndroid consegue compilar um motor a partir dos fontes decompilados já presentes no repositório. Neste projeto, a geração de fontes específicas ainda depende do PS2Recomp e da ISO PAL SCES-53326 v1.00; por isso, a build automática da CI (que não possui uma ISO de usuário) é apenas uma **build de estrutura/teste e não inicia o jogo**.
+Esse comando executa o pipeline do Celosia para extrair o disco, capturar os módulos que o jogo carrega dinamicamente e recompilar funções e microprogramas VU1. ISO, dumps de RAM, módulos capturados e C++ gerado permanecem no computador.
 
-## Gerar a engine pré-compilada e o APK no computador
+### Compilar o APK
 
-Com os submódulos recursivos, Python 3.10+, JDK 17, Android SDK API 35, Android NDK `28.2.13676358`, CMake `3.22.1` e Gradle `8.9` configurados, execute:
+`python3 scripts/prepare_celosia_android.py --iso "/caminho/para/SOTC-USA.iso" --jobs 1 --build-type release`
 
-```sh
-python scripts/prepare_sotc_android.py --iso CAMINHO/SCES-53326.iso --jobs 1 --build-type release
-```
+Para debug, use `--build-type debug`. Para relatório detalhado, `--build-type diagnostic`. O APK local de teste usa a assinatura debug padrão; isso não é uma chave de publicação Play Store.
 
-Esse comando verifica a ISO, gera o código com PS2Recomp e monta um APK que inclui as fontes geradas na engine ARM64. O APK final está em `app/build/outputs/apk/release/app-release.apk`. Para o primeiro teste, pode-se adicionar `--skip-vu1`, aceitando possível redução de desempenho. Para coletar diagnóstico use `--build-type diagnostic`. A ISO e `Port/generated/` permanecem locais; não faça commit nem envie esses dados ao GitHub.
+Se o código já estiver gerado e validado em `build/celosia/`, `--skip-setup` permite reaproveitá-lo. Ele não completa nem corrige uma geração incompleta.
 
-Mais detalhes: [docs/ON_DEVICE_RECOMPILATION.md](docs/ON_DEVICE_RECOMPILATION.md) e [docs/DIAGNOSTIC_BUILD.md](docs/DIAGNOSTIC_BUILD.md). Comparação com outro port nativo: [docs/REFERENCE_SHIPWRIGHT_ANDROID.md](docs/REFERENCE_SHIPWRIGHT_ANDROID.md).
+Mais detalhes: [docs/ANDROID_BUILD_FROM_ISO.md](docs/ANDROID_BUILD_FROM_ISO.md), [docs/CELOSIA_ANDROID_MIGRATION.md](docs/CELOSIA_ANDROID_MIGRATION.md) e [PORT_STATUS.md](PORT_STATUS.md).
 
-## Controles touch-screen
+## Renderer, entrada e bloqueios
 
-A tela do jogo usa um overlay transparente com analógico esquerdo para movimento, analógico direito para câmera, direcional, botões PlayStation (△, ○, ×, □), L1/L2, R1/R2, L3/R3 e Start/Select. O botão **CONTROLES ON/OFF** oculta ou mostra o overlay. O overlay aceita múltiplos toques ao mesmo tempo; o estado de botões e eixos chega ao polling do controle PS2 por uma biblioteca nativa compartilhada. A tela inicial também tem **Compartilhar diagnóstico**: após uma tentativa de boot, envia o log nativo do último início para ajudar a analisar uma tela preta ou erro. A integração ainda precisa ser validada com o jogo real no aparelho.
+O polling do controle Celosia é adaptado para ler o overlay touch Android: botões PlayStation em active-low e analógicos esquerdo/direito. O ciclo de vida do `GameActivity`, áudio, resposta real dos controles, menus, carregamento de áreas, saves e gameplay ainda requerem testes com a engine USA recompilada.
 
-## Renderer Android
+O Celosia documenta seu renderer nativo para Metal no macOS e OpenGL ES/vitaGL no PS Vita. A simples seleção `PLATFORM=Android` no raylib não implementa o renderer nativo de Android. A build começa com o GS em software como caminho de compatibilidade; não se deve prometer desempenho aceitável no Android até existir um teste real. O trabalho posterior precisa adaptar contextos/shaders para um backend Android (GLES/Vulkan) ou validar um caminho completo de GS por software.
 
-O port PC usa um renderer GS acelerado que exige OpenGL desktop 4.6, compute shaders/SSBOs e, em um dos caminhos, fragment-interlock. Para evitar esse caminho incompatível na inicialização Android, o launcher força temporariamente o GS por software. É um fallback para testar boot, não uma garantia de desempenho: ainda precisamos medir no aparelho e implementar renderer acelerado GLES/Vulkan.
+## Dados e licença
 
-## Etapas críticas restantes
-
-1. Tornar o gerador de código recompilado do upstream compatível com host Linux/Clang.
-2. Integrar `Port/generated/` e as fontes específicas do port ao target nativo Android quando forem geradas a partir da imagem de jogo do usuário.
-3. Adaptar e validar o renderer GS/shaders para Android; não presumir que uma compilação bem-sucedida comprova compatibilidade gráfica.
-4. Integrar a ISO importada com a engine, áudio, controles de toque, saves e diagnóstico.
-5. Testar boot e gameplay reais no aparelho.
-
-## Licenças e dados
-
-Nenhuma ISO, BIOS, asset, executável proprietário ou código gerado derivado da imagem do jogo é distribuído. Antes de copiar código de terceiros para este repositório, revisar as licenças e manter os avisos de cada dependência.
+Não envie ao GitHub ISO, BIOS, assets proprietários, dumps de RAM, capturas XFF, memory cards/saves ou código C++ gerado a partir da ISO. Celosia declara GPL-3.0: preserve os avisos aplicáveis e verifique as obrigações da licença antes de redistribuir código ou APK derivado.

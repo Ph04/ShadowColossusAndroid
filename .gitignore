@@ -14,3 +14,6 @@ Game/
 Port/generated/
 memcards/
 game_data/
+
+# Pinned Celosia checkout is cloned locally by the experimental Android build.
+/upstream/celosia/
