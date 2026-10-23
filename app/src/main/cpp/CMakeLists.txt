@@ -104,20 +104,23 @@ set(PS2X_ENABLE_RUNNER_PCH ON CACHE BOOL "" FORCE)
 set(PS2X_DEFAULT_BOOT_ELF "game/disc/SCUS_974.72" CACHE STRING "" FORCE)
 
 file(GLOB SOTC_CELOSIA_GAME_SOURCES CONFIGURE_DEPENDS "${SOTC_CELOSIA_GENERATED}/*.cpp")
+set(SOTC_CODEGEN_MARKER "${SOTC_CELOSIA_BUILD_DIR}/.usa-codegen-complete")
 set(SOTC_GAME_ENGINE_AVAILABLE OFF)
-set(SOTC_RUNNER_DIRS "${SOTC_CELOSIA_GENERATED}")
+set(SOTC_RUNNER_DIRS "")
 
-if(SOTC_CELOSIA_GAME_SOURCES)
-    # Only game-specific overrides may be included once generated USA functions
-    # exist. A clean CI checkout builds diagnostics, not fake game code.
+# Never treat a stale/partial boot-stage recompile as a complete game engine.
+# The local preparation helper writes this stamp only after all USA modules
+# and generated C++ outputs have been validated.
+if(EXISTS "${SOTC_CODEGEN_MARKER}" AND SOTC_CELOSIA_GAME_SOURCES)
     list(APPEND SOTC_RUNNER_DIRS
+        "${SOTC_CELOSIA_GENERATED}"
         "${SOTC_CELOSIA_BUILD_DIR}/vu1rec"
         "${SOTC_CELOSIA_SOURCE}/game/overrides"
     )
     set(SOTC_GAME_ENGINE_AVAILABLE ON)
-    message(STATUS "Celosia USA generated game C++ found; linking the native game overrides.")
+    message(STATUS "Complete Celosia USA codegen stamp and generated C++ found; linking game engine.")
 else()
-    message(STATUS "Celosia generated USA C++ is absent; building runtime diagnostics only.")
+    message(STATUS "Celosia USA codegen is incomplete or absent; building a diagnostic runtime only.")
 endif()
 set(PS2X_RUNNER_DIRS "${SOTC_RUNNER_DIRS}" CACHE STRING "" FORCE)
 
