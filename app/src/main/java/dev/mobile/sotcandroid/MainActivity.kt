@@ -1,6 +1,7 @@
 package dev.mobile.sotcandroid
 
 import android.content.Intent
+import android.net.Uri
 import android.database.Cursor
 import android.os.Bundle
 import android.os.StatFs
@@ -18,6 +19,10 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.security.MessageDigest
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 class MainActivity : ComponentActivity() {
     companion object {
@@ -46,6 +51,10 @@ class MainActivity : ComponentActivity() {
 
     private val isoPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(::importIso)
+    }
+
+    private val exportPicker = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        uri?.let(::exportCelosiaBundle)
     }
 
     private val gameFolder: File get() = File(filesDir, "game")
@@ -152,6 +161,23 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }, matchWidthWrap().apply { topMargin = dp(12) })
+
+        content.addView(Button(this).apply {
+            text = "Exportar pacote para geração Celosia"
+            setOnClickListener {
+                if (!IsoIntegrity.isVerified(gameFolder)) {
+                    Toast.makeText(this@MainActivity, "Importe primeiro a ISO USA.", Toast.LENGTH_LONG).show()
+                } else {
+                    exportPicker.launch("Celosia-USA-preparation.zip")
+                }
+            }
+        }, matchWidthWrap().apply { topMargin = dp(8) })
+
+        content.addView(TextView(this).apply {
+            text = "O pacote inclui apenas os arquivos principais extraídos do disco, logs e eventuais saídas de geração colocadas em files/celosia-output. Não inclui a ISO inteira nem os saves. A exportação não executa por si só a recompilação Celosia."
+            textSize = 12f
+            setPadding(0, dp(6), 0, 0)
+        }, matchWidthWrap())
 
         content.addView(TextView(this).apply {
             text = "Após a importação, a ISO temporária é removida para economizar espaço. Os arquivos extraídos e os saves permanecem no armazenamento privado. A build automática sem geração local ainda é apenas diagnóstica."
@@ -370,6 +396,129 @@ class MainActivity : ComponentActivity() {
             !hasEngine -> "Engine da edição USA ausente nesta build"
             else -> "Iniciar Shadow of the Colossus"
         }
+    }
+
+    /**
+     * Exports the minimum USA boot/module inputs and diagnostics for the
+     * external Celosia code-generation pipeline. The ISO itself is never copied.
+     * Optional generated files are picked up from files/celosia-output/{runner,vu1rec,captures}.
+     */
+    private fun exportCelosiaBundle(destination: Uri) {
+        if (!IsoIntegrity.isVerified(gameFolder)) {
+            Toast.makeText(this, "A estrutura USA não está validada.", Toast.LENGTH_LONG).show()
+            return
+        }
+        importButton.isEnabled = false
+        progressBar.isIndeterminate = true
+        gameStatus.text = "Preparando pacote de exportação Celosia…"
+        DiagnosticLogger.event(this, "celosia_export_started")
+
+        Thread {
+            try {
+                val files = mutableListOf<Pair<File, String>>()
+                val requiredDisc = listOf("SCUS_974.72", "KERNEL.XFF", "MANAGER.XFF", "GAMECORE.XFF", "SYSTEM.CNF")
+                requiredDisc.forEach { name ->
+                    val file = File(discFolder, name)
+                    if (!file.isFile || file.length() <= 0L) throw IOException("Arquivo USA necessário ausente: " + name)
+                    files += file to ("disc/" + name)
+                }
+                val logsDir = File(filesDir, "logs")
+                listOf("sotc-app.log", "sotc-boot.log").forEach { name ->
+                    val file = File(logsDir, name)
+                    if (file.isFile) files += file to ("logs/" + name)
+                }
+                val marker = IsoIntegrity.markerFile(gameFolder)
+                if (marker.isFile) files += marker to ("metadata/" + marker.name)
+
+                val generatedRoot = File(filesDir, "celosia-output")
+                var generatedCount = 0
+                listOf("runner", "vu1rec", "captures").forEach { folderName ->
+                    val folder = File(generatedRoot, folderName)
+                    if (folder.isDirectory) {
+                        folder.walkTopDown().filter { file ->
+                            file.isFile && when (folderName) {
+                                "runner" -> file.extension.lowercase() in setOf("cpp", "h", "hpp")
+                                "vu1rec" -> file.extension.lowercase() in setOf("cpp", "h", "hpp")
+                                "captures" -> file.extension.lowercase() == "bin"
+                                else -> false
+                            }
+                        }.forEach { file ->
+                            val relative = file.relativeTo(generatedRoot).invariantSeparatorsPath
+                            files += file to ("generated/" + relative)
+                            generatedCount++
+                        }
+                    }
+                }
+
+                val manifest = buildString {
+                    appendLine("package=ShadowColossusAndroid-Celosia-USA")
+                    appendLine("format=1")
+                    appendLine("edition=USA-SCUS_974.72")
+                    appendLine("source_iso_included=false")
+                    appendLine("generated_artifact_count=" + generatedCount)
+                    appendLine("generated_artifact_root=files/celosia-output/{runner,vu1rec,captures}")
+                    appendLine("note=This package is an input/export bundle. It does not claim that code generation ran on Android.")
+                    files.forEach { (file, archivePath) ->
+                        appendLine("file=" + archivePath + ";bytes=" + file.length() + ";sha256=" + sha256(file))
+                    }
+                }
+
+                val output = contentResolver.openOutputStream(destination, "w")
+                    ?: throw IOException("O Android não conseguiu abrir o destino do ZIP.")
+                output.use { raw ->
+                    ZipOutputStream(BufferedOutputStream(raw)).use { zip ->
+                        files.forEachIndexed { index, pair ->
+                            val (file, archivePath) = pair
+                            zip.putNextEntry(ZipEntry(archivePath))
+                            BufferedInputStream(file.inputStream()).use { input ->
+                                val buffer = ByteArray(256 * 1024)
+                                while (true) {
+                                    val count = input.read(buffer)
+                                    if (count < 0) break
+                                    if (count > 0) zip.write(buffer, 0, count)
+                                }
+                            }
+                            zip.closeEntry()
+                            if (index % 2 == 0) {
+                                runOnUiThread { gameStatus.text = "Empacotando arquivos Celosia: " + (index + 1) + "/" + files.size }
+                            }
+                        }
+                        zip.putNextEntry(ZipEntry("manifest.txt"))
+                        zip.write(manifest.toByteArray(Charsets.UTF_8))
+                        zip.closeEntry()
+                    }
+                }
+                DiagnosticLogger.event(this, "celosia_export_completed", "file_count=" + files.size + "; generated_artifact_count=" + generatedCount)
+                runOnUiThread {
+                    progressBar.isIndeterminate = false
+                    progressBar.progress = 1000
+                    importButton.isEnabled = true
+                    gameStatus.text = "Pacote Celosia exportado. Fontes C++ encontradas: " + generatedCount
+                    Toast.makeText(this, "Pacote Celosia salvo. Fontes geradas encontradas: " + generatedCount, Toast.LENGTH_LONG).show()
+                }
+            } catch (error: Exception) {
+                DiagnosticLogger.event(this, "celosia_export_failed", "type=" + error.javaClass.name + "; message=" + (error.message ?: "no-message"))
+                runOnUiThread {
+                    progressBar.isIndeterminate = false
+                    importButton.isEnabled = true
+                    gameStatus.text = "Exportação falhou: " + (error.message ?: error.javaClass.simpleName)
+                    Toast.makeText(this, "Falha ao exportar pacote Celosia.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        BufferedInputStream(file.inputStream()).use { input ->
+            val buffer = ByteArray(256 * 1024)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                if (count > 0) digest.update(buffer, 0, count)
+            }
+        }
+        return IsoIntegrity.toHex(digest.digest())
     }
 
     private fun launchGame() {
