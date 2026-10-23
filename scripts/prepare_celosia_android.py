@@ -120,7 +120,9 @@ def build_android(project_root: Path, build_type: str) -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--iso", type=Path, help="ISO/ZIP USA da sua própria cópia de Shadow of the Colossus")
+    source_group = parser.add_mutually_exclusive_group()
+    source_group.add_argument("--iso", type=Path, help="ISO/ZIP USA da sua própria cópia de Shadow of the Colossus")
+    source_group.add_argument("--disc-dir", type=Path, help="pasta já extraída ou 'disc/' de um pacote Celosia exportado pelo Android")
     parser.add_argument("--jobs", type=int, default=1, help="threads para a captura/build host; padrão conservador: 1")
     parser.add_argument("--build-type", choices=("debug", "diagnostic", "release"), default="release")
     parser.add_argument("--codegen-only", action="store_true", help="gera o código local e não executa Gradle/NDK")
@@ -147,11 +149,8 @@ def main() -> int:
         # if check_generated() proves all USA captures and VU1 output exist.
         (build_dir / ".usa-codegen-complete").unlink(missing_ok=True)
         if not args.skip_setup:
-            if not args.iso:
-                raise BuildError("Informe --iso com a imagem USA da sua própria cópia.")
-            iso = args.iso.expanduser().resolve()
-            if not iso.is_file():
-                raise BuildError(f"ISO/ZIP não encontrado: {iso}")
+            if not args.iso and not args.disc_dir:
+                raise BuildError("Informe --iso ou --disc-dir com os arquivos da edição USA.")
             if not shutil.which("bash"):
                 raise BuildError("A preparação Celosia requer Bash e ferramentas POSIX. No Windows, execute em WSL2.")
             for tool in ("cmake", "ninja", "python3", "bsdtar", "pkg-config"):
@@ -161,7 +160,30 @@ def main() -> int:
             env["CELOSIA_DISC"] = str(disc_dir)
             env["CELOSIA_BUILD"] = str(build_dir)
             env["CELOSIA_JOBS"] = str(args.jobs)
-            run(["bash", str(celosia / "celosia"), "setup", "--iso", str(iso)], cwd=celosia, env=env)
+
+            if args.iso:
+                iso = args.iso.expanduser().resolve()
+                if not iso.is_file():
+                    raise BuildError(f"ISO/ZIP não encontrado: {iso}")
+                setup_command = ["bash", str(celosia / "celosia"), "setup", "--iso", str(iso)]
+            else:
+                exported_disc = args.disc_dir.expanduser().resolve()
+                if not exported_disc.is_dir():
+                    raise BuildError(f"Pasta exportada não encontrada: {exported_disc}")
+                required_inputs = (DISC_BOOT, *MODULES, "SYSTEM.CNF")
+                missing_inputs = [
+                    name for name in required_inputs
+                    if not (exported_disc / name).is_file() or (exported_disc / name).stat().st_size == 0
+                ]
+                if missing_inputs:
+                    raise BuildError("Pacote exportado incompleto; faltam: " + ", ".join(missing_inputs))
+                disc_dir.mkdir(parents=True, exist_ok=True)
+                for name in required_inputs:
+                    shutil.copy2(exported_disc / name, disc_dir / name)
+                print(f"Usando arquivos USA extraídos; nenhuma ISO completa será necessária: {disc_dir}")
+                setup_command = ["bash", str(celosia / "celosia"), "setup"]
+
+            run(setup_command, cwd=celosia, env=env)
         generated_count = check_generated(build_dir)
         if args.codegen_only:
             print(f"Codegen USA concluído: {generated_count} fontes C++ em {build_dir / 'runner'}. Dados permanecem locais.")
