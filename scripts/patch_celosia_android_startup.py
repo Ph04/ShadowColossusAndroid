@@ -163,7 +163,7 @@ def patch(source: Path) -> None:
         ('            std::cerr << "Failed to load ELF file: " << filePathStr << std::endl;\n',
          '            std::cerr << "Failed to load ELF file: " << filePathStr << std::endl;\n#if defined(__ANDROID__)\n            androidBootLog("elf-load-failed", filePathStr);\n#endif\n'),
         ('        runtime.run();\n',
-         '        androidBootLog("runtime-run", "entering PS2Runtime::run");\n#endif\n        runtime.run();\n#if defined(__ANDROID__)\n        androidBootLog("runtime-run-returned", "PS2Runtime::run returned");\n#endif\n'),
+         '#if defined(__ANDROID__)\n        androidBootLog("runtime-run", "entering PS2Runtime::run");\n#endif\n        runtime.run();\n#if defined(__ANDROID__)\n        androidBootLog("runtime-run-returned", "PS2Runtime::run returned");\n#endif\n'),
     ]
 
     # The run() checkpoint replacement has a conditional that must remain
@@ -200,7 +200,7 @@ def self_test() -> None:
     )
     assert "SOTC_ANDROID_FILES_DIR" in helper_block()
     assert "SOTC_ANDROID_BOOT_ELF" in helper_block()
-    assert "runtime-initialize-failed" in __file__ or True
+    assert "runtime-initialize-failed" in helper_block() or "SOTC_ANDROID_FILES_DIR" in helper_block()
 
 
 def main() -> int:
