@@ -63,9 +63,20 @@ def create_mirror(source: Path, destination: Path, revision: str = PIN) -> Path:
         missing = [name for name in required if not (temporary / name).is_file()]
         if missing:
             raise MirrorError("Extracted Celosia mirror is incomplete: " + ", ".join(missing))
+        ownership_marker = ".sotc-celosia-source-mirror"
         if destination.exists():
+            marker = destination / ownership_marker
+            if not marker.is_file():
+                raise MirrorError(
+                    "Mirror destination exists without its ownership marker; refusing to delete user data: "
+                    + str(destination)
+                )
             shutil.rmtree(destination)
         temporary.rename(destination)
+        (destination / ownership_marker).write_text(
+            "source_revision=" + revision + "\\n",
+            encoding="ascii",
+        )
         return destination
     except Exception:
         if temporary.exists():
