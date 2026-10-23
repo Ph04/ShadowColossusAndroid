@@ -60,6 +60,7 @@ def ensure_checkout(destination: Path, revision: str = CELOSIA_COMMIT) -> Path:
         "celosia",
         "PS2Recomp/CMakeLists.txt",
         "PS2Recomp/ps2xRuntime/src/lib/ps2_pad.cpp",
+        "PS2Recomp/ps2xRuntime/src/lib/ps2_runtime.cpp",
         "PS2Recomp/ps2xRuntime/src/lib/native/native_renderer.cpp",
         "game/scus.toml",
         "game/overrides/sotc_overrides.cpp",
