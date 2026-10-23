@@ -35,11 +35,13 @@ jobs:
             scripts/ensure_celosia.py \
             scripts/patch_celosia_android_input.py \
             scripts/patch_celosia_android_paths.py \
+            scripts/patch_celosia_android_startup.py \
             scripts/prepare_celosia_android_source.py \
             scripts/prepare_celosia_android.py
           python3 scripts/ensure_celosia.py --self-test
           python3 scripts/patch_celosia_android_input.py --self-test
           python3 scripts/patch_celosia_android_paths.py --self-test
+          python3 scripts/patch_celosia_android_startup.py --self-test
           python3 scripts/prepare_celosia_android.py --check-source-tree
 
       - name: Set up Java
