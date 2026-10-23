@@ -60,7 +60,7 @@ Java_dev_mobile_sotcandroid_MainActivity_nativeSetIsoPath(JNIEnv* env, jobject, 
     const std::filesystem::path bootElf(chars);
     const std::filesystem::path discDirectory = bootElf.parent_path();
     const std::filesystem::path appFilesDirectory =
-        discDirectory.parent_path().parent_path().parent_path();
+        discDirectory.parent_path().parent_path();
     __android_log_print(ANDROID_LOG_INFO, kTag, "nativeSetIsoPath called; boot=%s", chars);
 
     std::error_code pathError;
