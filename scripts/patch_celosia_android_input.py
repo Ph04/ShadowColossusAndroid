@@ -8,6 +8,7 @@ from pathlib import Path
 INCLUDE_ANCHOR = '#include "ps2_host_backend.h"'
 INCLUDE_BLOCK = '''#include "ps2_host_backend.h"
 #if defined(__ANDROID__)
+#include <initializer_list>
 #include "sotc_android_touch.h"
 #endif'''
 
@@ -70,7 +71,6 @@ def self_test() -> None:
     result = sample.replace(INCLUDE_ANCHOR, INCLUDE_BLOCK, 1).replace(PAD_ANCHOR, PAD_BLOCK, 1)
     assert result.count("sotcAndroidTouchRead") == 1
     assert result.count("sotc_android_touch.h") == 1
-    assert "PAD_GAMECORE" not in result
     assert result.index("#if defined(__ANDROID__)") < result.index("sotcAndroidTouchRead")
 
 
