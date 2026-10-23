@@ -12,6 +12,8 @@ ANCHOR = '''        paths.hostRoot = paths.elfDirectory;
 
     setIoPaths(paths);'''
 
+HOOK_MARKER = 'memoryCardRoot = std::getenv("PS2X_MEMCARD_DIR")'
+
 PATCHED = '''        paths.hostRoot = paths.elfDirectory;
         paths.cdRoot = paths.elfDirectory;
         paths.mcRoot = paths.elfDirectory / "mc0";
@@ -32,8 +34,8 @@ PATCHED = '''        paths.hostRoot = paths.elfDirectory;
 
 def patch(source: Path) -> None:
     text = source.read_text(encoding="utf-8")
-    if "memoryCardRoot = std::getenv(\\"PS2X_MEMCARD_DIR\\")" in text:
-        if text.count("memoryCardRoot = std::getenv(\\"PS2X_MEMCARD_DIR\\")") != 1:
+    if HOOK_MARKER in text:
+        if text.count(HOOK_MARKER) != 1:
             raise SystemExit("Patch de memory card duplicado em " + str(source))
         print("Celosia Android memory-card path hook already applied: " + str(source))
         return
