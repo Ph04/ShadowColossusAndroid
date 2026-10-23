@@ -61,6 +61,15 @@ def check_generated(build_dir: Path) -> int:
             raise BuildError(f"Disco extraído incompleto: falta {name}")
     if not (build_dir.parent / "celosia-disc" / DISC_BOOT).is_file():
         raise BuildError(f"Disco extraído não contém {DISC_BOOT}")
+    # This stamp is written only after the boot ELF and all required modules
+    # were checked. CMake ignores any stale/partial generated .cpp without it.
+    marker = build_dir / ".usa-codegen-complete"
+    marker.write_text(
+        "edition=USA-SCUS_974.72\\n"
+        "generated_cpp_count=" + str(len(sources)) + "\\n"
+        "required_modules=KERNEL.XFF,MANAGER.XFF,GAMECORE.XFF\\n",
+        encoding="ascii",
+    )
     return len(sources)
 
 
@@ -109,6 +118,8 @@ def main() -> int:
             print(f"Celosia source tree is valid: {celosia}")
             return 0
         if not args.skip_setup:
+            # Invalidate any prior stamp before starting a new pipeline run.
+            (build_dir / ".usa-codegen-complete").unlink(missing_ok=True)
             if not args.iso:
                 raise BuildError("Informe --iso com a imagem USA da sua própria cópia.")
             iso = args.iso.expanduser().resolve()
