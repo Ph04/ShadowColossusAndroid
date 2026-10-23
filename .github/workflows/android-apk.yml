@@ -29,10 +29,11 @@ jobs:
 
       - name: Validate local ISO code-generation helper
         run: |
-          python3 -m py_compile scripts/prepare_sotc_android.py scripts/diagnostic_build.py scripts/patch_ps2recomp_android_input.py scripts/patch_sotc_android_main.py
+          python3 -m py_compile scripts/prepare_sotc_android.py scripts/diagnostic_build.py scripts/patch_ps2recomp_android_input.py scripts/patch_sotc_android_main.py scripts/android_port_audit.py
           python3 scripts/diagnostic_build.py --help >/dev/null
           python3 scripts/patch_ps2recomp_android_input.py --self-test
           python3 scripts/patch_sotc_android_main.py --self-test
+          python3 scripts/android_port_audit.py --self-test
           python3 scripts/prepare_sotc_android.py --check-source-tree --upstream upstream/sotc-vibe-pc
 
       - name: Audit upstream Android port blockers
