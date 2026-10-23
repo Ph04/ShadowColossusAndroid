@@ -46,6 +46,16 @@ Não execute o comando completo antes de conseguir gerar as fontes; se já exist
 
 O helper verifica que existem fontes recompiladas e os quatro arquivos principais do disco antes de chamar Gradle. A opção `--skip-setup` não corrige nem completa uma geração faltante.
 
+## Exportar o pacote de preparação pelo celular
+
+Na build Android, toque em **Exportar pacote para geração Celosia** e salve `Celosia-USA-preparation.zip`. O pacote inclui apenas `SCUS_974.72`, os três módulos XFF, `SYSTEM.CNF`, logs e o marcador de validação; ele não inclui a ISO inteira nem os saves. Se existirem saídas em `files/celosia-output/{runner,vu1rec,captures}`, também serão incluídas. Essa build Android **não gera C++ no próprio telefone**: o ZIP reúne entradas e eventuais saídas que já existirem, para permitir executar a etapa Celosia num ambiente de compilação.
+
+Depois de extrair o ZIP num computador Linux/WSL2, a pasta `disc/` contém os arquivos mínimos para continuar sem pedir a ISO completa. Na raiz do checkout, execute:
+
+    python3 scripts/prepare_celosia_android.py --disc-dir "/caminho/extraido/disc" --codegen-only --jobs 1
+
+O helper copia os arquivos exigidos para `build/celosia-disc/` e executa o pipeline Celosia, que ainda precisa abrir o runner host para capturar os módulos. Se esse ambiente concluir as capturas e a geração VU1, o próximo passo é compilar o APK no mesmo ambiente, ou exportar os artefatos gerados para integração posterior. O envio do ZIP não garante que a geração complete; os logs devem indicar em qual etapa parou.
+
 ## Como funciona a importação no Android
 
 Selecione sua ISO americana no launcher. O importador:
