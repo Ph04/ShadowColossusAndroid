@@ -18,35 +18,27 @@ jobs:
   build-arm64-apk:
     name: Build debug APK (arm64-v8a)
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
 
-      - name: Validate local ISO code-generation helper
+      - name: Validate Celosia USA migration helpers
+        shell: bash
         run: |
-          python3 -m py_compile scripts/prepare_sotc_android.py scripts/diagnostic_build.py scripts/patch_ps2recomp_android_input.py scripts/patch_sotc_android_main.py scripts/android_port_audit.py
-          python3 scripts/diagnostic_build.py --help >/dev/null
-          python3 scripts/patch_ps2recomp_android_input.py --self-test
-          python3 scripts/patch_sotc_android_main.py --self-test
-          python3 scripts/android_port_audit.py --self-test
-          python3 scripts/prepare_sotc_android.py --check-source-tree --upstream upstream/sotc-vibe-pc
-
-      - name: Audit upstream Android port blockers
-        run: python3 scripts/android_port_audit.py --upstream upstream/sotc-vibe-pc --output build/ANDROID_PORT_AUDIT.md
-
-      - name: Upload Android port audit
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Android-port-audit
-          path: build/ANDROID_PORT_AUDIT.md
-          if-no-files-found: warn
-          retention-days: 30
+          set -eu
+          python3 -m py_compile \
+            scripts/ensure_celosia.py \
+            scripts/patch_celosia_android_input.py \
+            scripts/prepare_celosia_android_source.py \
+            scripts/prepare_celosia_android.py
+          python3 scripts/ensure_celosia.py --self-test
+          python3 scripts/patch_celosia_android_input.py --self-test
+          python3 scripts/prepare_celosia_android.py --check-source-tree
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -78,7 +70,7 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build diagnostic, debug and optimized release scaffold APKs (game code absent in CI)
+      - name: Build debug and release scaffold APKs (USA game code absent in clean CI)
         run: gradle --no-daemon --max-workers=1 --stacktrace :app:assembleDebug :app:assembleDiagnostic :app:assembleRelease
 
       - name: Verify packaged native libraries
@@ -89,13 +81,14 @@ jobs:
             test -f "$APK"
             unzip -l "$APK" | grep -q 'lib/arm64-v8a/libsotc_android_touch.so'
             unzip -l "$APK" | grep -q 'lib/arm64-v8a/libps2EntryRunner.so'
+            unzip -l "$APK" | grep -q 'lib/arm64-v8a/libsotc_android_bridge.so'
           done
-          echo "Scaffold APKs contain touch input and the PS2 runtime; they are not playable without locally generated game code."
+          echo "APK contains the Celosia Android runtime and touch/JNI bridges. A clean CI build is diagnostic, not a playable game."
 
       - name: Upload debug scaffold APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ShadowColossusAndroid-debug-scaffold-apk
+          name: ShadowColossusAndroid-celosia-usa-debug-scaffold
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
@@ -103,7 +96,7 @@ jobs:
       - name: Upload optimized release scaffold APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ShadowColossusAndroid-release-scaffold-apk
+          name: ShadowColossusAndroid-celosia-usa-release-scaffold
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
@@ -111,7 +104,7 @@ jobs:
       - name: Upload diagnostic scaffold APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShadowColossusAndroid-diagnostic-scaffold-apk
+          name: ShadowColossusAndroid-celosia-usa-diagnostic-scaffold
           path: app/build/outputs/apk/diagnostic/app-diagnostic.apk
           if-no-files-found: error
           retention-days: 14
