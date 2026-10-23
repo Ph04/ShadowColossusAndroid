@@ -97,6 +97,15 @@ set(PS2X_RUNNER_DIRS "${SOTC_RUNNER_DIRS}" CACHE STRING "" FORCE)
 # links raylib Android + log/android, and configures ANativeActivity_onCreate.
 add_subdirectory("${SOTC_CELOSIA_SOURCE}/PS2Recomp" "${CMAKE_CURRENT_BINARY_DIR}/ps2recomp")
 
+# A clean CI checkout has no user's generated game C++. Celosia's runtime still
+# references the generated function table, so provide a zero-range stub only
+# for diagnostic builds. Never compile this alongside real generated functions.
+if(NOT SOTC_GAME_ENGINE_AVAILABLE)
+    target_sources(ps2EntryRunner PRIVATE "${CMAKE_CURRENT_LIST_DIR}/empty_recompiled_function_table.cpp")
+    message(STATUS "No generated USA code: linking the zero-range diagnostic function table.")
+endif()
+
+
 if(TARGET ps2_runtime)
     target_include_directories(ps2_runtime BEFORE PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
     target_link_libraries(ps2_runtime PUBLIC sotc_android_touch)
