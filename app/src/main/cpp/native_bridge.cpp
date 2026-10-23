@@ -83,7 +83,7 @@ Java_dev_mobile_sotcandroid_MainActivity_nativeSetIsoPath(JNIEnv* env, jobject, 
     // Until an Android native renderer exists, use the emulated PS2 GS path.
     const int bootResult = setenv("PS2X_DEFAULT_BOOT_ELF", "game/disc/SCUS_974.72", 1);
     const int gpuResult = setenv("PS2X_GS_GPU", "0", 1);
-    const int threadResult = setenv("PS2X_GS_THREAD", "1", 1);
+    const int threadResult = setenv("PS2X_GS_THREADS", "2", 1);
     const int nativeRendererResult = setenv("SOTC_NATIVE", "0", 1);
     const std::filesystem::path memoryCardDirectory = appFilesDirectory / "memcards";
     std::error_code directoryError;
@@ -94,7 +94,7 @@ Java_dev_mobile_sotcandroid_MainActivity_nativeSetIsoPath(JNIEnv* env, jobject, 
                                 nativeRendererResult == 0 && memoryCardResult == 0 && !directoryError
                             ? ANDROID_LOG_INFO : ANDROID_LOG_ERROR,
                         kTag,
-                        "Celosia launch env; boot=%d gpu=%d gs_thread=%d native=%d memcard=%d memcard_dir_error=%d",
+                        "Celosia launch env; boot=%d gpu=%d gs_threads=%d native=%d memcard=%d memcard_dir_error=%d",
                         bootResult, gpuResult, threadResult, nativeRendererResult, memoryCardResult,
                         directoryError ? 1 : 0);
     env->ReleaseStringUTFChars(path, chars);
