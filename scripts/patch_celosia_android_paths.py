@@ -44,7 +44,7 @@ def patch(source: Path) -> None:
 
 
 def self_test() -> None:
-    sample = "void configureIoPathsFromElf() {\\n" + ANCHOR + "\\n}"
+    sample = "void configureIoPathsFromElf() {\n" + ANCHOR + "\n}"
     result = sample.replace(ANCHOR, PATCHED, 1)
     assert result.count('std::getenv("PS2X_MEMCARD_DIR")') == 1
     assert result.index("paths.mcRoot = std::filesystem::path(memoryCardRoot)") < result.index("setIoPaths(paths)")
