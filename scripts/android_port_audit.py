@@ -26,7 +26,7 @@ PATTERNS = (
     ("Windows APIs", re.compile(r"#\s*include\s*[<\"]windows\.h[>\"]|GetModuleFileNameW|SetPriorityClass|_putenv_s|CaptureStackBackTrace")),
     ("MSVC-specific build flags", re.compile(r"/arch:AVX2|/bigobj|/d2OptimizeHugeFunctions|MSVC")),
     ("Windows-only generation assumptions", re.compile(r"ps2_recomp\.exe|vu1_recomp\.exe|build\.bat")),
-    ("Desktop OpenGL 4.6 / GLSL requirement", re.compile(r"#version\\s+460\\s+core|kContextMajorVersion,\\s*4,\\s*kContextMinorVersion,\\s*6")),
+    ("Desktop OpenGL 4.6 / GLSL requirement", re.compile(r"#version\s+460\s+core|kContextMajorVersion,\s*4,\s*kContextMinorVersion,\s*6")),
     ("Compute shaders and shader-storage buffers", re.compile(r"DispatchCompute|kComputeShader|kShaderStorageBuffer|BufferStorage")),
     ("OpenGL fragment-interlock requirement", re.compile(r"GL_ARB_fragment_shader_interlock|GL_INTEL_fragment_shader_ordering|GL_EXT_fragment_shader_interlock")),
     ("x86 SIMD intrinsics", re.compile(r"#\s*include\s*[<\"](?:immintrin|xmmintrin|emmintrin)\.h[>\"]|_mm256_|_mm_storeu_ps|_mm_loadu_ps")),
@@ -46,7 +46,21 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--upstream", default="upstream/sotc-vibe-pc")
     parser.add_argument("--output", default="build/ANDROID_PORT_AUDIT.md")
+    parser.add_argument("--self-test", action="store_true", help="test the desktop OpenGL blocker detector and exit")
     args = parser.parse_args()
+
+    if args.self_test:
+        gl_pattern = dict(PATTERNS)["Desktop OpenGL 4.6 / GLSL requirement"]
+        valid_samples = (
+            "#version 460 core",
+            "kContextMajorVersion, 4, kContextMinorVersion, 6",
+        )
+        if not all(gl_pattern.search(sample) for sample in valid_samples):
+            raise SystemExit("OpenGL blocker detector failed to match a desktop GL 4.6 sample.")
+        if gl_pattern.search("#version 320 es"):
+            raise SystemExit("OpenGL blocker detector incorrectly matched a GLES sample.")
+        print("OpenGL 4.6/GLSL 460 blocker detector self-test passed.")
+        return 0
 
     upstream = Path(args.upstream).resolve()
     missing = [name for name in REQUIRED if not (upstream / name).is_file()]
