@@ -81,7 +81,11 @@ Java_dev_mobile_sotcandroid_MainActivity_nativeSetIsoPath(JNIEnv* env, jobject, 
 
     // Celosia's compiled default ELF is relative to this private app-files cwd.
     // Until an Android native renderer exists, use the emulated PS2 GS path.
-    const int bootResult = setenv("PS2X_DEFAULT_BOOT_ELF", "game/disc/SCUS_974.72", 1);
+    // NativeActivity may call main() on a runtime-owned thread. Pass the
+    // absolute ELF/files paths explicitly; the patched Celosia entry point
+    // re-applies the working directory before reading any game data.
+    const int filesPathResult = setenv("SOTC_ANDROID_FILES_DIR", appFilesDirectory.c_str(), 1);
+    const int bootPathResult = setenv("SOTC_ANDROID_BOOT_ELF", bootElf.c_str(), 1);
     const int gpuResult = setenv("PS2X_GS_GPU", "0", 1);
     const int threadResult = setenv("PS2X_GS_THREADS", "2", 1);
     const int nativeRendererResult = setenv("SOTC_NATIVE", "0", 1);
@@ -90,15 +94,15 @@ Java_dev_mobile_sotcandroid_MainActivity_nativeSetIsoPath(JNIEnv* env, jobject, 
     std::filesystem::create_directories(memoryCardDirectory, directoryError);
     const int memoryCardResult = setenv("PS2X_MEMCARD_DIR", memoryCardDirectory.c_str(), 1);
 
-    __android_log_print(bootResult == 0 && gpuResult == 0 && threadResult == 0 &&
+    __android_log_print(filesPathResult == 0 && bootPathResult == 0 && gpuResult == 0 && threadResult == 0 &&
                                 nativeRendererResult == 0 && memoryCardResult == 0 && !directoryError
                             ? ANDROID_LOG_INFO : ANDROID_LOG_ERROR,
                         kTag,
-                        "Celosia launch env; boot=%d gpu=%d gs_threads=%d native=%d memcard=%d memcard_dir_error=%d",
-                        bootResult, gpuResult, threadResult, nativeRendererResult, memoryCardResult,
+                        "Celosia launch env; files_dir=%d boot_path=%d gpu=%d gs_threads=%d native=%d memcard=%d memcard_dir_error=%d",
+                        filesPathResult, bootPathResult, gpuResult, threadResult, nativeRendererResult, memoryCardResult,
                         directoryError ? 1 : 0);
     env->ReleaseStringUTFChars(path, chars);
-    return bootResult == 0 && gpuResult == 0 && threadResult == 0 &&
+    return filesPathResult == 0 && bootPathResult == 0 && gpuResult == 0 && threadResult == 0 &&
                    nativeRendererResult == 0 && memoryCardResult == 0 && !directoryError
                ? JNI_TRUE : JNI_FALSE;
 }
