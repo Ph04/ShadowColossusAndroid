@@ -2,48 +2,95 @@ package dev.mobile.sotcandroid
 
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.security.MessageDigest
+import java.util.Locale
 
 /**
- * Full-file validation for the supported PAL SCES-53326 v1.00 image.
- * The marker is app-private and bound to size/modification time; changed files are re-hashed.
+ * Tracks a successful structural import of the USA disc. There is intentionally
+ * no hard-coded USA image size/hash: we validate the ISO-9660 contents instead.
+ * The marker also records the source ISO hash for diagnostics, not authenticity.
  */
 object IsoIntegrity {
-    const val EXPECTED_ISO_BYTES = 4_635_918_336L
-    const val EXPECTED_ISO_SHA256 = "068925770645266189005f09c9a9a1fee25726bfc93c89b12f832f3673664ac4"
+    const val DISC_DIRECTORY = "disc"
+    const val BOOT_ELF = "SCUS_974.72"
+    const val MARKER_NAME = ".sotc-usa-disc.validation"
 
     private const val BUFFER_BYTES = 1024 * 1024
     private const val PROGRESS_STEP_BYTES = 16L * 1024 * 1024
     private const val HEX = "0123456789abcdef"
+    private val REQUIRED_FILES = listOf(BOOT_ELF, "KERNEL.XFF", "MANAGER.XFF", "GAMECORE.XFF", "SYSTEM.CNF")
 
-    private fun markerFile(isoFile: File): File =
-        File(isoFile.parentFile, isoFile.name + ".validation")
+    fun markerFile(gameFolder: File): File = File(gameFolder, MARKER_NAME)
 
-    fun isVerified(isoFile: File): Boolean {
-        if (!isoFile.isFile || isoFile.length() != EXPECTED_ISO_BYTES) return false
-        val marker = markerFile(isoFile)
-        if (!marker.isFile) return false
-        val values = runCatching {
+    fun isVerified(gameFolder: File): Boolean {
+        val marker = markerFile(gameFolder)
+        val disc = File(gameFolder, DISC_DIRECTORY)
+        if (!marker.isFile || !disc.isDirectory) return false
+        val values = readMarker(gameFolder)
+        if (values["schema"] != "1" || values["edition"] != "USA-SCUS_974.72") return false
+        val sourceSize = values["source_iso_bytes"]?.toLongOrNull() ?: return false
+        val sourceHash = values["source_iso_sha256"] ?: return false
+        if (sourceSize <= 0L || !sourceHash.matches(Regex("[0-9a-fA-F]{64}"))) return false
+        for (name in REQUIRED_FILES) {
+            val file = File(disc, name)
+            val storedSize = values["file_" + name.replace('.', '_').lowercase(Locale.ROOT) + "_bytes"]?.toLongOrNull()
+                ?: return false
+            if (!file.isFile || file.length() <= 0L || file.length() != storedSize) return false
+        }
+        return (values["file_count"]?.toIntOrNull() ?: 0) > 0 &&
+            (values["extracted_bytes"]?.toLongOrNull() ?: 0L) > 0L
+    }
+
+    fun readMarker(gameFolder: File): Map<String, String> {
+        val marker = markerFile(gameFolder)
+        if (!marker.isFile) return emptyMap()
+        return runCatching {
             marker.readLines(Charsets.US_ASCII).mapNotNull { line ->
                 val separator = line.indexOf('=')
                 if (separator <= 0) null else line.substring(0, separator) to line.substring(separator + 1)
             }.toMap()
-        }.getOrNull() ?: return false
-        return values["sha256"].equals(EXPECTED_ISO_SHA256, ignoreCase = true) &&
-            values["size"] == isoFile.length().toString() &&
-            values["last_modified"] == isoFile.lastModified().toString()
+        }.getOrDefault(emptyMap())
     }
 
-    fun writeVerifiedMarker(isoFile: File, actualSha256: String) {
-        require(actualSha256.equals(EXPECTED_ISO_SHA256, ignoreCase = true)) {
-            "Refusing to mark an ISO with an unexpected SHA-256 as verified."
+    fun writeVerifiedMarker(gameFolder: File, sourceSize: Long, sourceSha256: String, summary: Iso9660Disc.DiscSummary) {
+        require(sourceSize > 0L) { "Source ISO size must be positive." }
+        require(sourceSha256.matches(Regex("[0-9a-fA-F]{64}"))) { "Source ISO SHA-256 must be 64 hex digits." }
+        val disc = File(gameFolder, DISC_DIRECTORY)
+        require(disc.isDirectory) { "USA disc directory is missing." }
+
+        val fileSizes = REQUIRED_FILES.associateWith { name ->
+            val item = File(disc, name)
+            require(item.isFile && item.length() > 0L) { "Required USA disc file missing: " + name }
+            item.length()
         }
-        val marker = markerFile(isoFile)
-        marker.parentFile?.mkdirs()
-        marker.writeText(
-            "sha256=$actualSha256\nsize=${isoFile.length()}\nlast_modified=${isoFile.lastModified()}\n",
-            Charsets.US_ASCII,
+        val marker = markerFile(gameFolder)
+        if (!gameFolder.exists() && !gameFolder.mkdirs()) throw IllegalStateException("Could not create private game folder.")
+        val temporary = File(gameFolder, MARKER_NAME + ".partial")
+        val values = linkedMapOf(
+            "schema" to "1",
+            "edition" to "USA-SCUS_974.72",
+            "source_iso_bytes" to sourceSize.toString(),
+            "source_iso_sha256" to sourceSha256.lowercase(Locale.ROOT),
+            "file_count" to summary.fileCount.toString(),
+            "extracted_bytes" to summary.extractedBytes.toString(),
+            "file_scus_974_72_bytes" to fileSizes.getValue(BOOT_ELF).toString(),
+            "file_kernel_xff_bytes" to fileSizes.getValue("KERNEL.XFF").toString(),
+            "file_manager_xff_bytes" to fileSizes.getValue("MANAGER.XFF").toString(),
+            "file_gamecore_xff_bytes" to fileSizes.getValue("GAMECORE.XFF").toString(),
+            "file_system_cnf_bytes" to fileSizes.getValue("SYSTEM.CNF").toString(),
+            "boot_elf_bytes" to summary.bootElfBytes.toString(),
+            "created_epoch_ms" to System.currentTimeMillis().toString(),
         )
+        temporary.writeText(values.entries.joinToString(separator = "\n", postfix = "\n") { it.key + "=" + it.value }, Charsets.US_ASCII)
+        if (marker.exists() && !marker.delete()) {
+            temporary.delete()
+            throw IllegalStateException("Could not replace the previous disc validation marker.")
+        }
+        if (!temporary.renameTo(marker)) {
+            temporary.delete()
+            throw IllegalStateException("Could not finalize the disc validation marker.")
+        }
     }
 
     fun calculateSha256(file: File, onProgress: (Long, Long) -> Unit): String {
