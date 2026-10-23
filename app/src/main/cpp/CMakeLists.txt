@@ -3,54 +3,60 @@ project(sotc_android_bridge LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Source port + PS2Recomp are pinned as the upstream submodule.
 get_filename_component(SOTC_REPOSITORY_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../.." ABSOLUTE)
-set(SOTC_UPSTREAM "${SOTC_REPOSITORY_ROOT}/upstream/sotc-vibe-pc")
-set(SOTC_PS2RECOMP "${SOTC_UPSTREAM}/External/PS2Recomp")
-set(SOTC_PORT "${SOTC_UPSTREAM}/Port")
-set(SOTC_GENERATED "${SOTC_PORT}/generated")
-
-# The upstream controller poller reads raylib keyboard/gamepad state. Apply a
-# small, idempotent Android-only hook so touch controls feed the same PS2 pad
-# state rather than synthesizing unreliable Android key events.
+set(SOTC_CELOSIA_CHECKOUT "${SOTC_REPOSITORY_ROOT}/upstream/celosia")
+set(SOTC_CELOSIA_SOURCE "${SOTC_REPOSITORY_ROOT}/build/celosia-source")
+set(SOTC_CELOSIA_BUILD_DIR "${SOTC_REPOSITORY_ROOT}/build/celosia")
+set(SOTC_CELOSIA_GENERATED "${SOTC_CELOSIA_BUILD_DIR}/runner")
+set(SOTC_CELOSIA_REVISION "ed1025701cfa943d7c1649d88e5175a51ff33d5e")
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
-set(SOTC_ANDROID_TOUCH_PATCH "${SOTC_REPOSITORY_ROOT}/scripts/patch_ps2recomp_android_input.py")
-set(SOTC_PS2_HOST_INPUT "${SOTC_PS2RECOMP}/ps2xRuntime/src/lib/ps2_host_input.cpp")
-if(NOT EXISTS "${SOTC_ANDROID_TOUCH_PATCH}" OR NOT EXISTS "${SOTC_PS2_HOST_INPUT}")
-    message(FATAL_ERROR "Android touch-input patch prerequisites are missing.")
+
+# Keep the cloned, pinned upstream clean. Android-only changes are applied to a
+# disposable source mirror under build/, never to the Celosia checkout or main.
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" "${SOTC_REPOSITORY_ROOT}/scripts/ensure_celosia.py"
+            --destination "${SOTC_CELOSIA_CHECKOUT}" --revision "${SOTC_CELOSIA_REVISION}"
+    RESULT_VARIABLE SOTC_CELOSIA_CHECK_RESULT
+    COMMAND_ECHO STDOUT
+)
+if(NOT SOTC_CELOSIA_CHECK_RESULT EQUAL 0)
+    message(FATAL_ERROR "Celosia checkout validation failed. See the previous script output.")
+endif()
+
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" "${SOTC_REPOSITORY_ROOT}/scripts/prepare_celosia_android_source.py"
+            --source "${SOTC_CELOSIA_CHECKOUT}"
+            --destination "${SOTC_CELOSIA_SOURCE}"
+            --revision "${SOTC_CELOSIA_REVISION}"
+    RESULT_VARIABLE SOTC_CELOSIA_MIRROR_RESULT
+    COMMAND_ECHO STDOUT
+)
+if(NOT SOTC_CELOSIA_MIRROR_RESULT EQUAL 0)
+    message(FATAL_ERROR "Could not create the pinned Celosia source mirror for Android.")
+endif()
+
+set(SOTC_ANDROID_TOUCH_PATCH "${SOTC_REPOSITORY_ROOT}/scripts/patch_celosia_android_input.py")
+set(SOTC_CELOSIA_PAD_SOURCE "${SOTC_CELOSIA_SOURCE}/PS2Recomp/ps2xRuntime/src/lib/ps2_pad.cpp")
+if(NOT EXISTS "${SOTC_ANDROID_TOUCH_PATCH}" OR NOT EXISTS "${SOTC_CELOSIA_PAD_SOURCE}")
+    message(FATAL_ERROR "Celosia Android touch patch prerequisites are missing.")
 endif()
 execute_process(
-    COMMAND "${Python3_EXECUTABLE}" "${SOTC_ANDROID_TOUCH_PATCH}" --source "${SOTC_PS2_HOST_INPUT}"
+    COMMAND "${Python3_EXECUTABLE}" "${SOTC_ANDROID_TOUCH_PATCH}" --source "${SOTC_CELOSIA_PAD_SOURCE}"
     RESULT_VARIABLE SOTC_TOUCH_PATCH_RESULT
     COMMAND_ECHO STDOUT
 )
 if(NOT SOTC_TOUCH_PATCH_RESULT EQUAL 0)
-    message(FATAL_ERROR "Could not patch the pinned PS2Recomp host input source for Android touch controls.")
+    message(FATAL_ERROR "Could not apply the Android touch bridge to Celosia's PS2 pad poller.")
 endif()
 
-set(SOTC_ANDROID_MAIN_PATCH "${SOTC_REPOSITORY_ROOT}/scripts/patch_sotc_android_main.py")
-set(SOTC_PORT_MAIN "${SOTC_PORT}/src/main.cpp")
-if(NOT EXISTS "${SOTC_ANDROID_MAIN_PATCH}" OR NOT EXISTS "${SOTC_PORT_MAIN}")
-    message(FATAL_ERROR "Android boot logging patch prerequisites are missing.")
-endif()
-execute_process(
-    COMMAND "${Python3_EXECUTABLE}" "${SOTC_ANDROID_MAIN_PATCH}" --source "${SOTC_PORT_MAIN}"
-    RESULT_VARIABLE SOTC_MAIN_PATCH_RESULT
-    COMMAND_ECHO STDOUT
-)
-if(NOT SOTC_MAIN_PATCH_RESULT EQUAL 0)
-    message(FATAL_ERROR "Could not patch the SOTC entry point for Android logcat diagnostics.")
-endif()
-
-# This shared library stores touch state exactly once in the app process. Both
-# the Kotlin touch overlay and PS2Recomp's controller poller use this library.
+# The JNI bridge and the game runtime share one process-wide touch state.
 add_library(sotc_android_touch SHARED android_touch_input.cpp)
 target_include_directories(sotc_android_touch PUBLIC "${CMAKE_CURRENT_LIST_DIR}")
 target_compile_features(sotc_android_touch PRIVATE cxx_std_17)
 target_compile_options(sotc_android_touch PRIVATE -Wall -Wextra -Werror=return-type)
 
-if(NOT EXISTS "${SOTC_PS2RECOMP}/CMakeLists.txt")
-    message(FATAL_ERROR "Pinned PS2Recomp submodule missing at ${SOTC_PS2RECOMP}; check out submodules recursively.")
+if(NOT EXISTS "${SOTC_CELOSIA_SOURCE}/PS2Recomp/CMakeLists.txt")
+    message(FATAL_ERROR "The pinned Celosia PS2Recomp tree is missing.")
 endif()
 
 set(PS2X_BUILD_RECOMP OFF CACHE BOOL "" FORCE)
@@ -63,142 +69,37 @@ set(PS2X_ENABLE_DEBUG_UI OFF CACHE BOOL "" FORCE)
 set(PS2X_ENABLE_SCCACHE OFF CACHE BOOL "" FORCE)
 set(PS2X_ENABLE_RUNNER_UNITY_BUILD ON CACHE BOOL "" FORCE)
 set(PS2X_RUNNER_UNITY_BUILD_BATCH_SIZE 16 CACHE STRING "" FORCE)
-add_subdirectory("${SOTC_PS2RECOMP}" "${CMAKE_CURRENT_BINARY_DIR}/ps2recomp")
+set(PS2X_ENABLE_RUNNER_PCH ON CACHE BOOL "" FORCE)
+
+# This path is relative to the app-private files directory. The JNI bridge
+# sets cwd before GameActivity/NativeActivity starts.
+set(PS2X_DEFAULT_BOOT_ELF "game/disc/SCUS_974.72" CACHE STRING "" FORCE)
+
+file(GLOB SOTC_CELOSIA_GAME_SOURCES CONFIGURE_DEPENDS "${SOTC_CELOSIA_GENERATED}/*.cpp")
+set(SOTC_GAME_ENGINE_AVAILABLE OFF)
+set(SOTC_RUNNER_DIRS "${SOTC_CELOSIA_GENERATED}")
+
+if(SOTC_CELOSIA_GAME_SOURCES)
+    # Only game-specific overrides may be included once generated USA functions
+    # exist. A clean CI checkout builds diagnostics, not fake game code.
+    list(APPEND SOTC_RUNNER_DIRS
+        "${SOTC_CELOSIA_BUILD_DIR}/vu1rec"
+        "${SOTC_CELOSIA_SOURCE}/game/overrides"
+    )
+    set(SOTC_GAME_ENGINE_AVAILABLE ON)
+    message(STATUS "Celosia USA generated game C++ found; linking the native game overrides.")
+else()
+    message(STATUS "Celosia generated USA C++ is absent; building runtime diagnostics only.")
+endif()
+set(PS2X_RUNNER_DIRS "${SOTC_RUNNER_DIRS}" CACHE STRING "" FORCE)
+
+# Celosia's Android-aware CMake creates ps2EntryRunner as a shared library,
+# links raylib Android + log/android, and configures ANativeActivity_onCreate.
+add_subdirectory("${SOTC_CELOSIA_SOURCE}/PS2Recomp" "${CMAKE_CURRENT_BINARY_DIR}/ps2recomp")
 
 if(TARGET ps2_runtime)
     target_include_directories(ps2_runtime BEFORE PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
     target_link_libraries(ps2_runtime PUBLIC sotc_android_touch)
-endif()
-
-# Several runtime files include Intel intrinsic header names directly.
-# On AArch64 redirect these legacy names to the upstream sse2neon compatibility
-# header instead of Clang's x86-only intrinsic headers.
-set(SOTC_ARM_SSE_SHIM_DIR "${CMAKE_CURRENT_LIST_DIR}/arm_sse_shims")
-if(TARGET ps2_runtime)
-    target_include_directories(ps2_runtime BEFORE PRIVATE "${SOTC_ARM_SSE_SHIM_DIR}")
-endif()
-if(TARGET ps2EntryRunner)
-    target_include_directories(ps2EntryRunner BEFORE PRIVATE "${SOTC_ARM_SSE_SHIM_DIR}")
-endif()
-
-# The upstream CMake file creates a generic PS2 ELF runner. If the user has
-# generated Shadow of the Colossus C++ from their own supported ISO, replace
-# only that runner's main() and attach the game-specific hooks and code.
-# Generated game code is intentionally not tracked or shipped in this repo.
-set(SOTC_GAME_ENGINE_AVAILABLE OFF)
-if(EXISTS "${SOTC_GENERATED}/register_functions.cpp" AND
-   EXISTS "${SOTC_GENERATED}/sotc_layout_generated.h")
-    message(STATUS "Shadow of the Colossus generated code found: wiring game host layer into ps2EntryRunner")
-
-    set(SOTC_HOST_SOURCES
-        "${SOTC_PORT}/src/sotc/config.cpp"
-        "${SOTC_PORT}/src/sotc/debug_script.cpp"
-        "${SOTC_PORT}/src/sotc/display_mode.cpp"
-        "${SOTC_PORT}/src/sotc/function_hooks.cpp"
-        "${SOTC_PORT}/src/sotc/game_disc.cpp"
-        "${SOTC_PORT}/src/sotc/hle/sce_cdvd.cpp"
-        "${SOTC_PORT}/src/sotc/hle/libgcc.cpp"
-        "${SOTC_PORT}/src/sotc/hle/sce_fileio.cpp"
-        "${SOTC_PORT}/src/sotc/idle_thread.cpp"
-        "${SOTC_PORT}/src/sotc/log.cpp"
-        "${SOTC_PORT}/src/sotc/module_guard.cpp"
-        "${SOTC_PORT}/src/sotc/motion_blur.cpp"
-        "${SOTC_PORT}/src/sotc/mouse_camera.cpp"
-        "${SOTC_PORT}/src/sotc/sha256.cpp"
-        "${SOTC_PORT}/src/sotc/window_icon.cpp"
-        "${SOTC_PORT}/src/sotc/watchdog.cpp"
-    )
-    foreach(source IN LISTS SOTC_HOST_SOURCES)
-        if(NOT EXISTS "${source}")
-            message(FATAL_ERROR "Missing required Shadow of the Colossus port source: ${source}")
-        endif()
-    endforeach()
-
-    file(GLOB SOTC_GENERATED_SOURCES CONFIGURE_DEPENDS "${SOTC_GENERATED}/*.cpp")
-    add_library(sotc_game_code STATIC ${SOTC_GENERATED_SOURCES})
-    target_include_directories(sotc_game_code PUBLIC "${SOTC_GENERATED}")
-    target_link_libraries(sotc_game_code PUBLIC ps2_runtime)
-    target_include_directories(sotc_game_code BEFORE PRIVATE "${SOTC_ARM_SSE_SHIM_DIR}")
-    set_target_properties(sotc_game_code PROPERTIES UNITY_BUILD OFF)
-    # The generated game is a large number of C++ translation units; compile
-    # them serially under Ninja to avoid exhausting memory on ordinary PCs.
-    set_property(GLOBAL APPEND PROPERTY JOB_POOLS sotc_engine_compile=1)
-    set_property(TARGET sotc_game_code PROPERTY JOB_POOL_COMPILE sotc_engine_compile)
-
-    # The upstream PC build precompiles the runtime/generated headers for this
-    # large target. Keep the same strategy on NDK/Clang to avoid reparsing the
-    # runtime API thousands of times during a first local ISO build.
-    target_precompile_headers(sotc_game_code PRIVATE
-        "${SOTC_PS2RECOMP}/ps2xRuntime/include/ps2_runtime_macros.h"
-        "${SOTC_PS2RECOMP}/ps2xRuntime/include/ps2_runtime.h"
-        "${SOTC_GENERATED}/ps2_recompiled_functions.h"
-        "${SOTC_GENERATED}/ps2_recompiled_stubs.h"
-        "${SOTC_PS2RECOMP}/ps2xRuntime/include/ps2_syscalls.h"
-        "${SOTC_PS2RECOMP}/ps2xRuntime/include/ps2_stubs.h"
-    )
-
-    # register_functions.cpp can be an exceptionally large generated TU.
-    # Disable optimizer passes for this registration table to reduce peak
-    # memory during Android builds; gameplay functions remain optimized.
-    set_source_files_properties(
-        "${SOTC_GENERATED}/register_functions.cpp"
-        PROPERTIES COMPILE_OPTIONS "-O0"
-    )
-
-    # Replace the generic runner entry point with the game-specific boot path.
-    # PS2Recomp prefers src/runner/main.cpp when present and only falls
-    # back to src/main.cpp on older revisions. Remove both variants so the
-    # Android shared library has exactly the SOTC boot entry point.
-    set(SOTC_GENERIC_MAIN_SOURCES
-        "${SOTC_PS2RECOMP}/ps2xRuntime/src/runner/main.cpp"
-        "${SOTC_PS2RECOMP}/ps2xRuntime/src/main.cpp"
-    )
-    set(SOTC_GENERIC_MAIN_NORMALIZED_LIST)
-    foreach(SOTC_GENERIC_MAIN IN LISTS SOTC_GENERIC_MAIN_SOURCES)
-        file(TO_CMAKE_PATH "${SOTC_GENERIC_MAIN}" SOTC_GENERIC_MAIN_NORMALIZED)
-        list(APPEND SOTC_GENERIC_MAIN_NORMALIZED_LIST "${SOTC_GENERIC_MAIN_NORMALIZED}")
-    endforeach()
-    get_target_property(SOTC_RUNNER_SOURCES ps2EntryRunner SOURCES)
-    set(SOTC_RUNNER_SOURCES_FILTERED)
-    foreach(SOTC_SOURCE IN LISTS SOTC_RUNNER_SOURCES)
-        set(SOTC_SOURCE_NORMALIZED "${SOTC_SOURCE}")
-        if(NOT IS_ABSOLUTE "${SOTC_SOURCE}")
-            if(EXISTS "${SOTC_PS2RECOMP}/${SOTC_SOURCE}")
-                get_filename_component(SOTC_SOURCE_NORMALIZED "${SOTC_PS2RECOMP}/${SOTC_SOURCE}" ABSOLUTE)
-            elseif(EXISTS "${SOTC_PS2RECOMP}/ps2xRuntime/${SOTC_SOURCE}")
-                get_filename_component(SOTC_SOURCE_NORMALIZED "${SOTC_PS2RECOMP}/ps2xRuntime/${SOTC_SOURCE}" ABSOLUTE)
-            endif()
-        endif()
-        file(TO_CMAKE_PATH "${SOTC_SOURCE_NORMALIZED}" SOTC_SOURCE_NORMALIZED)
-        set(SOTC_IS_GENERIC_MAIN OFF)
-        foreach(SOTC_GENERIC_MAIN_NORMALIZED IN LISTS SOTC_GENERIC_MAIN_NORMALIZED_LIST)
-            if(SOTC_SOURCE_NORMALIZED STREQUAL SOTC_GENERIC_MAIN_NORMALIZED)
-                set(SOTC_IS_GENERIC_MAIN ON)
-            endif()
-        endforeach()
-        if(NOT SOTC_IS_GENERIC_MAIN
-           AND NOT SOTC_SOURCE MATCHES "(^|/)ps2xRuntime/src/(runner/)?main\\.cpp$")
-            list(APPEND SOTC_RUNNER_SOURCES_FILTERED "${SOTC_SOURCE}")
-        endif()
-    endforeach()
-    set_property(TARGET ps2EntryRunner PROPERTY SOURCES "${SOTC_RUNNER_SOURCES_FILTERED}")
-    target_sources(ps2EntryRunner PRIVATE "${SOTC_PORT}/src/main.cpp" ${SOTC_HOST_SOURCES})
-    target_include_directories(ps2EntryRunner PRIVATE "${SOTC_PORT}/src" "${SOTC_GENERATED}")
-    target_link_libraries(ps2EntryRunner PRIVATE sotc_game_code)
-
-    file(GLOB SOTC_VU1_SOURCES CONFIGURE_DEPENDS "${SOTC_GENERATED}/vu1/*.cpp")
-    if(SOTC_VU1_SOURCES)
-        add_library(sotc_vu1_code STATIC ${SOTC_VU1_SOURCES})
-        target_include_directories(sotc_vu1_code PRIVATE "${SOTC_PS2RECOMP}/ps2xRuntime/src/lib/vu" "${SOTC_GENERATED}")
-        target_link_libraries(sotc_vu1_code PUBLIC ps2_runtime)
-        target_include_directories(sotc_vu1_code BEFORE PRIVATE "${SOTC_ARM_SSE_SHIM_DIR}")
-        target_link_libraries(ps2EntryRunner PRIVATE sotc_vu1_code)
-        target_compile_definitions(ps2EntryRunner PRIVATE SOTC_HAS_VU1_PROGRAMS=1)
-    endif()
-
-    set(SOTC_GAME_ENGINE_AVAILABLE ON)
-else()
-    message(STATUS "SOTC generated C++ is absent; building runtime diagnostics only, not a playable game")
 endif()
 
 add_library(sotc_android_bridge SHARED native_bridge.cpp)
