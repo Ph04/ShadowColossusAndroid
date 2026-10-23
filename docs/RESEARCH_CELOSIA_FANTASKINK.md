@@ -81,3 +81,15 @@ O CMake Android integra `Port/generated/` somente quando a geração local está
 ## Critério de sucesso
 
 Um APK só será chamado de jogável depois de instalado e testado com a ISO PAL suportada e de confirmar boot visível, controles, imagem, áudio e estabilidade em aparelho Android real. Os artefatos padrão da CI não atendem a esse critério.
+
+## Comparação de código já conferida
+
+Uma comparação direcionada do runtime dá uma indicação útil sobre prioridades:
+
+- **EE timer overflow/compare backlog:** não é uma correção para copiar sem verificar. A revisão de PS2Recomp documentada pelo port PC já contém estruturas e contabilidade de eventos pendentes em `ps2_memory.cpp`; a correção antiga do Celosia sobre estouros de timer não deve ser reaplicada cegamente. O ponto prático é confirmar que o código gerado usa essa implementação e exercitar a temporização no boot.
+- **EE dispatch direto (`callGuest` / `jumpGuest`):** o Celosia tem melhorias posteriores no caminho rápido do runtime/recompilador que não aparecem na revisão de PS2Recomp consultada no port PC fixado. Isso pode ser uma otimização futura, mas altera o código gerado e as fronteiras do scheduler. Deve ficar desligada/fora do primeiro marco até haver boot real e testes diferenciais reproduzíveis; não é pré-requisito para validar o pipeline de build.
+- **Renderer nativo do Celosia:** as abstrações de backend e a conversão de estruturas do jogo são referências úteis, mas o código está acoplado a macros de plataforma `__APPLE__`/`__vita__` e hooks da edição americana. Um backend Android exigirá contexto EGL/ANativeWindow, carregamento de funções GLES ou Vulkan e compilação/adaptação de shaders, além de verificar a semântica do desenho PS2. Copiar somente `native_renderer_gl.cpp` não produz um renderer Android.
+- **Código Android dentro do Celosia:** o arquivo `ps2_android_runtime.cpp` do estado consultado ainda contém apenas um TODO para overlay de controles e um bloco Android vazio. Logo, não é uma implementação de integração Android pronta para reutilizar; os controles/JNI já presentes no nosso projeto continuam sendo a base mais útil.
+
+Estas constatações reforçam a separação entre (1) gerar/ligar o código de jogo PAL, (2) demonstrar o primeiro boot com o caminho de compatibilidade e (3) desenvolver um backend gráfico acelerado. Nenhuma otimização de performance será considerada uma correção de boot sem um teste que a reproduza.
+
