@@ -195,12 +195,15 @@ def patch(source: Path) -> None:
 
 def self_test() -> None:
     assert 'std::getenv("SOTC_ANDROID_BOOT_ELF")' in PATH_PATCH
-    assert "androidBootLog(\\"boot-path\\"" in (
+    assert 'androidBootLog("boot-path", bootDetail);' in (
         'androidBootLog("boot-path", bootDetail);'
     )
     assert "SOTC_ANDROID_FILES_DIR" in helper_block()
     assert "SOTC_ANDROID_BOOT_ELF" in helper_block()
-    assert "runtime-initialize-failed" in helper_block() or "SOTC_ANDROID_FILES_DIR" in helper_block()
+    assert 'androidBootLog("entry", "NativeActivity runner main() entered");' in MAIN_PATCH
+    assert 'androidBootLog("runtime-initialize-failed"' in (
+        'androidBootLog("runtime-initialize-failed", "PS2Runtime::initialize returned false");'
+    )
 
 
 def main() -> int:
