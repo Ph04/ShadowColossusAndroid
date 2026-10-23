@@ -56,18 +56,44 @@ def check_generated(build_dir: Path) -> int:
             f"Celosia não produziu código recompilado em {runner}. "
             "Não vou compilar ou descrever o resultado como engine do jogo."
         )
+
+    disc_dir = build_dir.parent / "celosia-disc"
     for name in MODULES:
-        if not (build_dir.parent / "celosia-disc" / name).is_file():
+        module = disc_dir / name
+        if not module.is_file() or module.stat().st_size == 0:
             raise BuildError(f"Disco extraído incompleto: falta {name}")
-    if not (build_dir.parent / "celosia-disc" / DISC_BOOT).is_file():
+    boot = disc_dir / DISC_BOOT
+    if not boot.is_file() or boot.stat().st_size == 0:
         raise BuildError(f"Disco extraído não contém {DISC_BOOT}")
-    # This stamp is written only after the boot ELF and all required modules
-    # were checked. CMake ignores any stale/partial generated .cpp without it.
+
+    # A complete setup must reach all three runtime module captures; otherwise
+    # runner/*.cpp may only contain the boot stage and must not enable Play.
+    captures_dir = build_dir / "captures"
+    for module_name in ("kernel", "manager", "gamecore"):
+        capture = captures_dir / (module_name + ".bin")
+        if not capture.is_file() or capture.stat().st_size < 33_554_432:
+            raise BuildError(
+                f"Codegen USA incompleto: captura {capture.name} ausente ou menor que 32 MiB. "
+                "Execute o pipeline completo ./celosia setup com sua ISO."
+            )
+
+    vu1_dir = build_dir / "vu1rec"
+    vu1_sources = [item for item in vu1_dir.glob("*.cpp") if item.is_file() and item.stat().st_size > 0]
+    if not vu1_sources:
+        raise BuildError(
+            f"Celosia não gerou fontes VU1 recompiladas em {vu1_dir}; "
+            "o APK não será marcado como pronto para iniciar o jogo."
+        )
+
+    # Remove any previous marker first; only write a new one after every
+    # prerequisite above has passed, so partial/stale code cannot enable Play.
     marker = build_dir / ".usa-codegen-complete"
+    marker.unlink(missing_ok=True)
     marker.write_text(
-        "edition=USA-SCUS_974.72\\n"
-        "generated_cpp_count=" + str(len(sources)) + "\\n"
-        "required_modules=KERNEL.XFF,MANAGER.XFF,GAMECORE.XFF\\n",
+        "edition=USA-SCUS_974.72\n"
+        + "generated_cpp_count=" + str(len(sources)) + "\n"
+        + "vu1_cpp_count=" + str(len(vu1_sources)) + "\n"
+        + "required_modules=KERNEL.XFF,MANAGER.XFF,GAMECORE.XFF\n",
         encoding="ascii",
     )
     return len(sources)
@@ -117,9 +143,10 @@ def main() -> int:
         if args.check_source_tree:
             print(f"Celosia source tree is valid: {celosia}")
             return 0
+        # Invalidate a prior stamp on every invocation. It is restored only
+        # if check_generated() proves all USA captures and VU1 output exist.
+        (build_dir / ".usa-codegen-complete").unlink(missing_ok=True)
         if not args.skip_setup:
-            # Invalidate any prior stamp before starting a new pipeline run.
-            (build_dir / ".usa-codegen-complete").unlink(missing_ok=True)
             if not args.iso:
                 raise BuildError("Informe --iso com a imagem USA da sua própria cópia.")
             iso = args.iso.expanduser().resolve()
