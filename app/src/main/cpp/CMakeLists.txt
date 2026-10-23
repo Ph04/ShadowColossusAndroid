@@ -63,6 +63,20 @@ if(NOT SOTC_PATH_PATCH_RESULT EQUAL 0)
     message(FATAL_ERROR "Could not route the Celosia memory-card root to persistent app storage.")
 endif()
 
+set(SOTC_ANDROID_STARTUP_PATCH "${SOTC_REPOSITORY_ROOT}/scripts/patch_celosia_android_startup.py")
+set(SOTC_CELOSIA_MAIN_SOURCE "${SOTC_CELOSIA_SOURCE}/PS2Recomp/ps2xRuntime/src/main.cpp")
+if(NOT EXISTS "${SOTC_ANDROID_STARTUP_PATCH}" OR NOT EXISTS "${SOTC_CELOSIA_MAIN_SOURCE}")
+    message(FATAL_ERROR "Celosia Android startup patch prerequisites are missing.")
+endif()
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" "${SOTC_ANDROID_STARTUP_PATCH}" --source "${SOTC_CELOSIA_MAIN_SOURCE}"
+    RESULT_VARIABLE SOTC_STARTUP_PATCH_RESULT
+    COMMAND_ECHO STDOUT
+)
+if(NOT SOTC_STARTUP_PATCH_RESULT EQUAL 0)
+    message(FATAL_ERROR "Could not patch Celosia's boot path and persistent startup diagnostics.")
+endif()
+
 # The JNI bridge and the game runtime share one process-wide touch state.
 add_library(sotc_android_touch SHARED android_touch_input.cpp)
 target_include_directories(sotc_android_touch PUBLIC "${CMAKE_CURRENT_LIST_DIR}")
