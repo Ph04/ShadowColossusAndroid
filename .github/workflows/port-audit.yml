@@ -1,7 +1,7 @@
 name: Android port static audit
 on:
   push:
-    branches: [main]
+    branches: [main, celosia-android-port]
   pull_request:
   workflow_dispatch:
 jobs:
