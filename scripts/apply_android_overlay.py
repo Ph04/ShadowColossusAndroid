@@ -113,6 +113,30 @@ def main() -> int:
     )
     add_after(runtime, '            hostmenu::draw(GetScreenWidth(), GetScreenHeight());\n',
               draw_call, 'ps2xAndroidDrawTouchControls();', args.check_only)
+
+    cmake = UPSTREAM / "PS2Recomp" / "ps2xRuntime" / "CMakeLists.txt"
+    add_after(cmake, '    src/lib/ps2_pad.cpp\\n',
+              '    src/lib/ps2_android_runtime.cpp\\n',
+              'src/lib/ps2_android_runtime.cpp', args.check_only)
+
+    boot_anchor = (
+        'if(PS2X_DEFAULT_BOOT_ELF_DEFINE)\\n'
+        '    target_compile_definitions(ps2EntryRunner PRIVATE\\n'
+        '        PS2X_DEFAULT_BOOT_ELF="${PS2X_DEFAULT_BOOT_ELF_DEFINE}"\\n'
+        '    )\\n'
+        'endif()'
+    )
+    boot_runtime_define = (
+        '\\nif(PS2X_DEFAULT_BOOT_ELF_DEFINE)\\n'
+        '    target_compile_definitions(ps2_runtime PRIVATE\\n'
+        '        PS2X_DEFAULT_BOOT_ELF="${PS2X_DEFAULT_BOOT_ELF_DEFINE}"\\n'
+        '    )\\n'
+        'endif()'
+    )
+    add_after(cmake, boot_anchor, boot_runtime_define,
+              'target_compile_definitions(ps2_runtime PRIVATE\\n        PS2X_DEFAULT_BOOT_ELF=',
+              args.check_only)
+
     print("Android overlay audit/application complete.")
     return 0
 
