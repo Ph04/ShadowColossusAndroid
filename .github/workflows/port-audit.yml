@@ -18,5 +18,10 @@ jobs:
           python-version: '3.12'
       - name: Audit repository layout
         run: python3 scripts/validate_port.py
+      - name: Check script syntax and devcontainer configuration
+        run: |
+          bash -n scripts/bootstrap_codespace.sh scripts/build_android_apk.sh
+          python3 -m py_compile scripts/apply_android_overlay.py scripts/validate_port.py
+          python3 -c "import json; json.load(open('.devcontainer/devcontainer.json'))"
       - name: Check integration anchors
         run: python3 scripts/apply_android_overlay.py --check-only
