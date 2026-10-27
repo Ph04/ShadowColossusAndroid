@@ -23,5 +23,9 @@ jobs:
           bash -n scripts/bootstrap_codespace.sh scripts/build_android_apk.sh
           python3 -m py_compile scripts/apply_android_overlay.py scripts/validate_port.py
           python3 -c "import json; json.load(open('.devcontainer/devcontainer.json'))"
-      - name: Check integration anchors
-        run: python3 scripts/apply_android_overlay.py --check-only
+      - name: Apply integration and verify idempotency
+        run: |
+          python3 scripts/apply_android_overlay.py
+          python3 scripts/apply_android_overlay.py --check-only
+          grep -q 'src/lib/ps2_android_runtime.cpp' upstream/celosia/PS2Recomp/ps2xRuntime/CMakeLists.txt
+          grep -q 'target_compile_definitions(ps2_runtime PRIVATE' upstream/celosia/PS2Recomp/ps2xRuntime/CMakeLists.txt
