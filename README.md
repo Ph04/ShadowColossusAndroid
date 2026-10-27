@@ -1,83 +1,98 @@
 # Celosia Android
 
 Port Android em desenvolvimento para Celosia / Shadow of the Colossus.
-Este repositório mantém a integração Android separada do código original e
-fixa o Celosia upstream como submódulo para manter runtime, recompiler e
-correções de jogo sincronizados.
+Esta branch mantém a integração Android separada do código original e fixa
+HenryKun55/celosia como submódulo, no commit `bb0bfd840a7454533c3018544fcf68f46de0a1ff`.
 
 ## Estado atual
 
-- O estado anterior do experimento Android está na branch
-  backup/pre-celosia-cleanup-2026-10-27.
-- A branch main agora usa HenryKun55/celosia como submódulo em upstream/celosia.
-- Este repositório contém a sobreposição Android, script de integração e
-  auditoria estática.
-- Não há APK validado. O renderer nativo OpenGL do Celosia ainda não tem
-  backend Android; a primeira meta é inicializar o runtime e validar o caminho
-  gráfico emulado.
+- Área de trabalho: branch `celosia-android-port`.
+- O experimento Android anterior foi preservado em
+  `backup/pre-celosia-cleanup-2026-10-27`.
+- `main` continua preservada no estado anterior; não foi substituída.
+- A integração Android e o ambiente remoto de build estão preparados, mas ainda
+  não existe APK compilado ou validado.
+- O renderer nativo OpenGL do Celosia não possui backend Android nesta revisão.
+  A meta inicial é compilar, iniciar o runtime e testar o caminho gráfico
+  disponível antes de avaliar o renderer.
 
-## Checkout
+## Build usando somente o celular
 
-    git clone --recurse-submodules https://github.com/Ph04/ShadowColossusAndroid.git
-    cd ShadowColossusAndroid
+A geração dos fontes do Celosia precisa executar o programa do jogo durante
+capturas de módulos. Como o fluxo original espera uma janela gráfica, o script
+para Linux usa Xvfb (display virtual) e renderização por software. Isso ainda
+precisa ser confirmado numa execução real.
 
-Se já foi clonado sem submódulos:
+1. Abra o repositório na branch `celosia-android-port` e crie um Codespace:
+   [GitHub Codespaces](https://github.com/codespaces). A disponibilidade e a
+   cota dependem da conta.
+2. Quando o ambiente abrir, aguarde o script de preparação instalar as
+   ferramentas de Linux, Android SDK/NDK, CMake e Gradle.
+3. Envie a sua própria ISO para a área de arquivos do Codespace. **Não** a envie
+   para o repositório nem a adicione a um commit.
+4. No terminal do Codespace, execute, ajustando o nome/caminho do arquivo:
+
+       ./scripts/build_android_apk.sh --iso "/workspaces/ShadowColossusAndroid/Shadow-of-the-Colossus.iso"
+
+   A geração pode demorar e pode falhar se a captura gráfica headless não
+   funcionar nesse ambiente. O script para ao encontrar erros e não anuncia
+   sucesso sem confirmar que o APK existe.
+5. Se os fontes gerados já estiverem em `upstream/celosia/build`, é possível
+   tentar somente a compilação Android com:
+
+       ./scripts/build_android_apk.sh --skip-setup
+
+6. O APK esperado será:
+   `upstream/celosia/PS2Recomp/android/app/build/outputs/apk/debug/app-debug.apk`.
+   Baixe-o pelo explorador de arquivos do Codespace.
+
+O script ignora as pastas de build e arquivos de jogo pelo `.gitignore`.
+Verifique sempre que a ISO e os dados extraídos não aparecem entre as mudanças
+do Git antes de publicar qualquer commit.
+
+## Preparação manual / depuração
+
+O submódulo é inicializado com:
 
     git submodule update --init --recursive
 
-## Aplicar a integração Android
-
-Na raiz do repositório:
+A aplicação da integração Android é idempotente:
 
     python3 scripts/apply_android_overlay.py
-
-O script instala os arquivos Gradle e o auxiliar Android na árvore upstream e
-integra os controles touch no leitor de pad e no ciclo de desenho. Ele pode ser
-executado mais de uma vez. Para verificar os pontos de integração sem alterar:
-
     python3 scripts/apply_android_overlay.py --check-only
 
-## Preparar código do jogo e compilar
+O pipeline original de geração dos fontes é `./celosia setup --iso <ISO>`.
+Ele cria, entre outros, `build/runner` e `build/vu1rec`; não incluímos esses
+artefatos derivados nem arquivos proprietários do jogo neste repositório.
 
-A recompilação precisa da sua própria cópia legítima do disco. Nenhum ISO, ELF,
-XFF, dump ou código C++ derivado do jogo é distribuído aqui.
+## Configuração Android
 
-1. Aplique a integração acima.
-2. No diretório upstream/celosia, execute no computador host:
-
-       ./celosia setup --iso /caminho/para/sua-copia/Shadow-of-the-Colossus.iso
-
-3. Depois compile o alvo Android:
-
-       cd PS2Recomp/android
-       gradle wrapper --gradle-version 8.9
-       ./gradlew assembleDebug
-
-O APK esperado fica em upstream/celosia/PS2Recomp/android/app/build/outputs/apk/debug/app-debug.apk.
-
-Requisitos: Android SDK, NDK 28.2.13676358, CMake 3.22.1 e JDK compatível com
-Gradle 8.9. A primeira fase usa apenas arm64-v8a.
+- Android SDK Platform 35
+- Android NDK `28.2.13676358`
+- CMake `3.22.1`
+- Gradle `8.9`
+- ABI inicial: `arm64-v8a`
+- ID do aplicativo: `dev.celosia.sotc`
 
 ## Arquivos no aparelho
 
-O caminho de boot padrão é
-/storage/emulated/0/Android/data/dev.celosia.sotc/files/SCUS_974.72.
-Copie para essa pasta os arquivos extraídos da sua cópia do jogo. Não publique
-dados proprietários do jogo.
+O caminho configurado para o ELF de inicialização é:
 
-O env.txt pode ficar ao lado do ELF inicial. São aceitas variáveis PS2X_*,
-SOTC_* e CELOSIA_*. Os controles touch ficam ativos por padrão; use
-CELOSIA_TOUCH_CONTROLS=0 para desligá-los.
+`/storage/emulated/0/Android/data/dev.celosia.sotc/files/SCUS_974.72`
 
-## Limitações
+Copie para a pasta de arquivos do aplicativo os dados extraídos da sua própria
+cópia do jogo. Não publique esses dados.
 
-- Esta branch não contém APK compilado/testado.
-- Os controles touch ainda são um protótipo, sem editor de layout.
-- FFmpeg fica desligado no Android nesta primeira fase, então vídeos MPEG não
+O `env.txt` pode ficar ao lado do ELF inicial. São aceitas variáveis
+`PS2X_*`, `SOTC_*` e `CELOSIA_*`. Os controles touch estão ativos por padrão;
+`CELOSIA_TOUCH_CONTROLS=0` os desativa.
+
+## Limitações atuais
+
+- A auditoria estática do CI verifica a estrutura e os pontos de integração; não
+  substitui a compilação NDK nem um teste em aparelho.
+- A primeira build completa via Codespaces ainda não foi executada/confirmada.
+- Os controles touch são um protótipo, sem editor de layout.
+- FFmpeg fica desativado no Android nesta primeira fase; vídeos MPEG ainda não
   estão implementados.
-- O renderer nativo OpenGL do upstream ainda não tem backend Android. Não
-  estamos afirmando paridade com macOS/Vita.
-- A auditoria de CI verifica a estrutura e os pontos de inserção, não substitui
-  build com SDK/NDK nem teste em dispositivo.
-
-Consulte PORT_STATUS.md para o estado exato.
+- O renderer nativo do upstream não tem backend Android nesta revisão.
