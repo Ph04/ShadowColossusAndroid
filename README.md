@@ -32,7 +32,7 @@ precisa ser confirmado numa execução real.
    para o repositório nem a adicione a um commit.
 4. No terminal do Codespace, execute, ajustando o nome/caminho do arquivo:
 
-       ./scripts/build_android_apk.sh --iso "/workspaces/ShadowColossusAndroid/Shadow-of-the-Colossus.iso"
+       bash scripts/build_android_apk.sh --iso "/workspaces/ShadowColossusAndroid/Shadow-of-the-Colossus.iso"
 
    A geração pode demorar e pode falhar se a captura gráfica headless não
    funcionar nesse ambiente. O script para ao encontrar erros e não anuncia
@@ -40,7 +40,7 @@ precisa ser confirmado numa execução real.
 5. Se os fontes gerados já estiverem em `upstream/celosia/build`, é possível
    tentar somente a compilação Android com:
 
-       ./scripts/build_android_apk.sh --skip-setup
+       bash scripts/build_android_apk.sh --skip-setup
 
 6. O APK esperado será:
    `upstream/celosia/PS2Recomp/android/app/build/outputs/apk/debug/app-debug.apk`.
