@@ -1,0 +1,90 @@
+plugins {
+    id 'com.android.application'
+}
+
+def celosiaRoot = rootProject.projectDir.canonicalFile.parentFile.parentFile
+def appId = 'dev.celosia.sotc'
+def defaultBootElf = '/storage/emulated/0/Android/data/dev.celosia.sotc/files/SCUS_974.72'
+def bootElf = project.findProperty('ps2xBootElf') ?: defaultBootElf
+def generatedRunner = new File(celosiaRoot, 'build/runner')
+def generatedVu1 = new File(celosiaRoot, 'build/vu1rec')
+def gameOverrides = new File(celosiaRoot, 'game/overrides')
+def runnerDirs = [generatedRunner.absolutePath, generatedVu1.absolutePath, gameOverrides.absolutePath].join(';')
+
+android {
+    namespace appId
+    compileSdk 35
+    ndkVersion '28.2.13676358'
+
+    defaultConfig {
+        applicationId appId
+        minSdk 28
+        targetSdk 35
+        versionCode 1
+        versionName '0.1.0-dev'
+        externalNativeBuild {
+            cmake {
+                arguments '-DPS2X_BUILD_RECOMP=OFF',
+                        '-DPS2X_BUILD_ANALYZER=OFF',
+                        '-DPS2X_BUILD_TEST=OFF',
+                        '-DPS2X_BUILD_STUDIO=OFF',
+                        '-DPS2X_ENABLE_CCACHE=OFF',
+                        '-DPS2X_ENABLE_SCCACHE=OFF',
+                        '-DPS2X_ENABLE_AGRESSIVE_LOGS=OFF',
+                        '-DPS2X_ENABLE_DEBUG_UI=OFF',
+                        '-DPS2X_ENABLE_FFMPEG=OFF',
+                        '-DPS2X_ENABLE_RUNNER_PCH=OFF',
+                        '-DPS2X_RUNNER_UNITY_BUILD_BATCH_SIZE=32',
+                        '-DOPENGL_VERSION=ES 3.0',
+                        '-DPS2X_DEFAULT_BOOT_ELF=' + bootElf,
+                        '-DPS2X_RUNNER_DIRS=' + runnerDirs
+                targets 'ps2EntryRunner'
+            }
+        }
+        ndk { abiFilters 'arm64-v8a' }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file('../../CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
+
+    buildTypes {
+        debug {
+            externalNativeBuild {
+                cmake { arguments '-DCMAKE_BUILD_TYPE=RelWithDebInfo' }
+            }
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+            externalNativeBuild {
+                cmake { arguments '-DCMAKE_BUILD_TYPE=Release' }
+            }
+        }
+    }
+}
+
+tasks.register('validateCelosiaGeneratedSources') {
+    doLast {
+        def cppFiles = generatedRunner.exists()
+                ? generatedRunner.listFiles()?.findAll { it.isFile() && it.name.endsWith('.cpp') }
+                : []
+        if (!cppFiles || cppFiles.isEmpty()) {
+            throw new GradleException(
+                'Celosia generated code was not found at ' + generatedRunner +
+                '. Run ./celosia setup --iso <your-own-SotC-ISO> in upstream/celosia first.'
+            )
+        }
+        if (!gameOverrides.exists()) {
+            throw new GradleException('Missing Celosia game overrides directory: ' + gameOverrides)
+        }
+        logger.lifecycle('Celosia Android: found ' + cppFiles.size() + ' generated runner C++ files.')
+    }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn tasks.named('validateCelosiaGeneratedSources')
+}

@@ -1,82 +1,83 @@
-# ShadowColossusAndroid
+# Celosia Android
 
-Projeto para portar para Android ARM64 a versão recompilada de [Shadow of the Colossus para PC](https://github.com/LightVelox/sotc-vibe-pc/tree/v0.1.0-preview.1), usando [Tenkaichi3DecompAndroid](https://github.com/dfdx047/Tenkaichi3DecompAndroid) como referência de arquitetura móvel.
+Port Android em desenvolvimento para Celosia / Shadow of the Colossus.
+Este repositório mantém a integração Android separada do código original e
+fixa o Celosia upstream como submódulo para manter runtime, recompiler e
+correções de jogo sincronizados.
 
-> **Estado real: prévia 0.2 em desenvolvimento, ainda não comprovada como jogável.** O repositório agora inclui o overlay touch-screen e sua ponte de entrada nativa, o fluxo local para gerar o código do jogo e diagnóstico nativo em logcat. O APK gerado pela CI continua sem o código recompilado específico do jogo, pois esse código precisa ser gerado a partir de uma ISO do usuário e compilado localmente.
+## Estado atual
 
-## Código upstream fixado
+- O estado anterior do experimento Android está na branch
+  backup/pre-celosia-cleanup-2026-10-27.
+- A branch main agora usa HenryKun55/celosia como submódulo em upstream/celosia.
+- Este repositório contém a sobreposição Android, script de integração e
+  auditoria estática.
+- Não há APK validado. O renderer nativo OpenGL do Celosia ainda não tem
+  backend Android; a primeira meta é inicializar o runtime e validar o caminho
+  gráfico emulado.
 
-O projeto de PC está como submódulo em `upstream/sotc-vibe-pc`, no commit da tag `v0.1.0-preview.1`. O submódulo PS2Recomp é obtido recursivamente. Seu CMake reconhece Android, escolhe raylib para a camada de plataforma e ativa compatibilidade SIMD ARM via sse2neon. O app compila os targets de runtime necessários para validar essa base; isso ainda não equivale a executar o jogo.
+## Checkout
 
-## Compilação de APK
+    git clone --recurse-submodules https://github.com/Ph04/ShadowColossusAndroid.git
+    cd ShadowColossusAndroid
 
-GitHub Actions compila o APK ARM64 em cada push, pull request ou execução manual.
+Se já foi clonado sem submódulos:
 
-1. Abra **Actions → Android APK**.
-2. Execute **Run workflow** ou abra a execução iniciada pelo último commit.
-3. Baixe o artefato `ShadowColossusAndroid-debug-apk`.
-4. Baixe `Android-port-audit` para ver o relatório estático das dependências upstream.
+    git submodule update --init --recursive
 
-O APK ainda não inicia Shadow of the Colossus.
+## Aplicar a integração Android
 
-## Importação da ISO
+Na raiz do repositório:
 
-Na tela inicial, selecione sua própria ISO PAL europeia `SCES-53326 v1.00`. O app copia o arquivo para o armazenamento privado e valida tamanho e SHA-256 esperado para a ISO PAL SCES-53326 v1.00. O runtime ainda executa seus próprios checks de boot ELF e módulos; a validação de hash do arquivo não substitui esses checks. É necessário espaço interno livre suficiente; a ISO não é enviada ao GitHub.
+    python3 scripts/apply_android_overlay.py
 
-A ISO, assets, fontes C++ geradas e saves são excluídos do Git.
+O script instala os arquivos Gradle e o auxiliar Android na árvore upstream e
+integra os controles touch no leitor de pad e no ciclo de desenho. Ele pode ser
+executado mais de uma vez. Para verificar os pontos de integração sem alterar:
 
-## Recompilação no próprio celular: estado atual
+    python3 scripts/apply_android_overlay.py --check-only
 
-A referência [Tenkaichi3DecompAndroid](https://github.com/dfdx047/Tenkaichi3DecompAndroid) não recompila a ISO dentro do app: o código decompilado já existe no repositório e o script `port/tools/android.py` compila o motor ARM64 durante o desenvolvimento. No aparelho, o launcher verifica a imagem e copia os dados do disco para a estrutura que o motor usa.
+## Preparar código do jogo e compilar
 
-O fluxo de Shadow of the Colossus é diferente: `ps2_recomp` gera arquivos C++ específicos a partir dos executáveis e módulos da ISO; em seguida, esses arquivos precisam ser compilados e ligados ao runtime Android. O APK atual contém o runtime, mas ainda **não inclui um gerador PS2Recomp executável no processo do app nem uma toolchain C/C++ para compilar as fontes durante a execução**.
+A recompilação precisa da sua própria cópia legítima do disco. Nenhum ISO, ELF,
+XFF, dump ou código C++ derivado do jogo é distribuído aqui.
 
-A tela inicial ganhou uma verificação visual por etapas. Ela mede o progresso **da verificação de pré-requisitos**, identifica a ISO, o espaço livre e a ABI ARM64 e informa a ausência das ferramentas. Os 100% dessa verificação não significam que o jogo foi recompilado. O fluxo real de geração, compilação, ligação e carregamento no Android ainda precisa ser implementado.
+1. Aplique a integração acima.
+2. No diretório upstream/celosia, execute no computador host:
 
-## Compilar localmente
+       ./celosia setup --iso /caminho/para/sua-copia/Shadow-of-the-Colossus.iso
 
-Requisitos: Python 3.10+, JDK 17, Android SDK API 35, Android NDK `28.2.13676358`, CMake `3.22.1` e Gradle `8.9`. Python também é usado pelo CMake para aplicar os hooks Android de entrada e diagnóstico ao checkout local dos submódulos.
+3. Depois compile o alvo Android:
 
-```sh
-gradle --no-daemon :app:assembleDebug
-```
+       cd PS2Recomp/android
+       gradle wrapper --gradle-version 8.9
+       ./gradlew assembleDebug
 
-APK: `app/build/outputs/apk/debug/app-debug.apk`.
+O APK esperado fica em upstream/celosia/PS2Recomp/android/app/build/outputs/apk/debug/app-debug.apk.
 
-## Modelo escolhido: motor pré-compilado como no Budokai
+Requisitos: Android SDK, NDK 28.2.13676358, CMake 3.22.1 e JDK compatível com
+Gradle 8.9. A primeira fase usa apenas arm64-v8a.
 
-No telefone **não recompilamos a ISO**. A engine ARM64 específica do jogo precisa ser gerada e compilada antes da montagem do APK. Depois de instalar esse APK, o launcher importa a ISO do usuário e entrega seu caminho ao motor nativo. O código C++ gerado a partir da ISO não é incluído no Git.
+## Arquivos no aparelho
 
-O Tenkaichi3DecompAndroid consegue compilar um motor a partir dos fontes decompilados já presentes no repositório. Neste projeto, a geração de fontes específicas ainda depende do PS2Recomp e da ISO PAL SCES-53326 v1.00; por isso, a build automática da CI (que não possui uma ISO de usuário) é apenas uma **build de estrutura/teste e não inicia o jogo**.
+O caminho de boot padrão é
+/storage/emulated/0/Android/data/dev.celosia.sotc/files/SCUS_974.72.
+Copie para essa pasta os arquivos extraídos da sua cópia do jogo. Não publique
+dados proprietários do jogo.
 
-## Gerar a engine pré-compilada e o APK no computador
+O env.txt pode ficar ao lado do ELF inicial. São aceitas variáveis PS2X_*,
+SOTC_* e CELOSIA_*. Os controles touch ficam ativos por padrão; use
+CELOSIA_TOUCH_CONTROLS=0 para desligá-los.
 
-Com os submódulos recursivos, Python 3.10+, JDK 17, Android SDK API 35, Android NDK `28.2.13676358`, CMake `3.22.1` e Gradle `8.9` configurados, execute:
+## Limitações
 
-```sh
-python scripts/prepare_sotc_android.py --iso CAMINHO/SCES-53326.iso --jobs 1 --build-type release
-```
+- Esta branch não contém APK compilado/testado.
+- Os controles touch ainda são um protótipo, sem editor de layout.
+- FFmpeg fica desligado no Android nesta primeira fase, então vídeos MPEG não
+  estão implementados.
+- O renderer nativo OpenGL do upstream ainda não tem backend Android. Não
+  estamos afirmando paridade com macOS/Vita.
+- A auditoria de CI verifica a estrutura e os pontos de inserção, não substitui
+  build com SDK/NDK nem teste em dispositivo.
 
-Esse comando verifica a ISO, gera o código com PS2Recomp e monta um APK que inclui as fontes geradas na engine ARM64. O APK final está em `app/build/outputs/apk/release/app-release.apk`. Para o primeiro teste, pode-se adicionar `--skip-vu1`, aceitando possível redução de desempenho. Para coletar diagnóstico use `--build-type diagnostic`. A ISO e `Port/generated/` permanecem locais; não faça commit nem envie esses dados ao GitHub.
-
-Mais detalhes: [docs/ON_DEVICE_RECOMPILATION.md](docs/ON_DEVICE_RECOMPILATION.md) e [docs/DIAGNOSTIC_BUILD.md](docs/DIAGNOSTIC_BUILD.md). Comparação com outro port nativo: [docs/REFERENCE_SHIPWRIGHT_ANDROID.md](docs/REFERENCE_SHIPWRIGHT_ANDROID.md).
-
-## Controles touch-screen
-
-A tela do jogo usa um overlay transparente com analógico esquerdo para movimento, analógico direito para câmera, direcional, botões PlayStation (△, ○, ×, □), L1/L2, R1/R2, L3/R3 e Start/Select. O botão **CONTROLES ON/OFF** oculta ou mostra o overlay. O overlay aceita múltiplos toques ao mesmo tempo; o estado de botões e eixos chega ao polling do controle PS2 por uma biblioteca nativa compartilhada. A tela inicial também tem **Compartilhar diagnóstico**: após uma tentativa de boot, envia o log nativo do último início para ajudar a analisar uma tela preta ou erro. A integração ainda precisa ser validada com o jogo real no aparelho.
-
-## Renderer Android
-
-O port PC usa um renderer GS acelerado que exige OpenGL desktop 4.6, compute shaders/SSBOs e, em um dos caminhos, fragment-interlock. Para evitar esse caminho incompatível na inicialização Android, o launcher força temporariamente o GS por software. É um fallback para testar boot, não uma garantia de desempenho: ainda precisamos medir no aparelho e implementar renderer acelerado GLES/Vulkan.
-
-## Etapas críticas restantes
-
-1. Tornar o gerador de código recompilado do upstream compatível com host Linux/Clang.
-2. Integrar `Port/generated/` e as fontes específicas do port ao target nativo Android quando forem geradas a partir da imagem de jogo do usuário.
-3. Adaptar e validar o renderer GS/shaders para Android; não presumir que uma compilação bem-sucedida comprova compatibilidade gráfica.
-4. Integrar a ISO importada com a engine, áudio, controles de toque, saves e diagnóstico.
-5. Testar boot e gameplay reais no aparelho.
-
-## Licenças e dados
-
-Nenhuma ISO, BIOS, asset, executável proprietário ou código gerado derivado da imagem do jogo é distribuído. Antes de copiar código de terceiros para este repositório, revisar as licenças e manter os avisos de cada dependência.
+Consulte PORT_STATUS.md para o estado exato.

@@ -1,0 +1,22 @@
+name: Android port static audit
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository and pinned Celosia upstream
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Audit repository layout
+        run: python3 scripts/validate_port.py
+      - name: Check integration anchors
+        run: python3 scripts/apply_android_overlay.py --check-only

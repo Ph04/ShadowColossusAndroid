@@ -1,42 +1,37 @@
-# Estado do porte
+# Estado do port Celosia Android
 
-**Marco atual:** runtime Android ARM64 compilável em CI, geração local do jogo e controles touch conectados ao polling do controle. Ainda não foi validado um boot real; não marcar como jogável até o teste com ISO.
+Data: 2026-10-27.
 
-## Implementado no repositório
+## Repositório
+- Upstream como submódulo: HenryKun55/celosia.
+- Commit upstream fixado: bb0bfd840a7454533c3018544fcf68f46de0a1ff.
+- O conteúdo anterior foi preservado em branch
+  backup/pre-celosia-cleanup-2026-10-27.
+- main foi reorganizada para ser a área de trabalho do port Android.
 
-- [x] Aplicativo Android Kotlin/Gradle com alvo `arm64-v8a`.
-- [x] Biblioteca JNI e diagnóstico no launcher.
-- [x] Seleção Android e importação da ISO para armazenamento privado, com barra de progresso e verificação do tamanho; os hashes internos são verificados pelo runtime gerado ao iniciar.
-- [x] Código upstream de PC fixado como submódulo no commit `v0.1.0-preview.1`, com submódulos recursivos.
-- [x] Auditoria estática automática dos bloqueios de porte, publicada como artefato da CI.
-- [x] CMake Android configurado para compilar `ps2_runtime` e o runner `ps2EntryRunner` do PS2Recomp, usando o caminho ARM64/Android upstream.
-- [x] CI configurada para construir o runtime ARM64 e o APK de diagnóstico; resultado do último commit disponível em [Actions](https://github.com/Ph04/ShadowColossusAndroid/actions).
-- [x] Overlay touch-screen com analógicos esquerdo/direito, botões PS2, múltiplos toques e controle de mostrar/ocultar.
-- [x] Biblioteca compartilhada de estado touch integrada ao polling do controle PS2 via hook Android aplicado ao checkout local do submódulo.
-- [x] Encaminhamento de stdout/stderr do entry point específico do jogo para Android logcat e para `files/logs/sotc-boot.log` no armazenamento privado.
-- [x] Botão no launcher para compartilhar o log de inicialização mais recente sem ADB.
+## Descobertas verificadas nos fontes
+- PS2Recomp/CMakeLists.txt detecta Android e desativa recompiler, analyzer,
+  testes e studio no build nativo Android.
+- ps2xRuntime constrói ps2EntryRunner como biblioteca compartilhada Android.
+- src/lib/ps2_android_runtime.cpp estava apenas como TODO.
+- src/main.cpp já redireciona stdout/stderr para logcat no Android.
+- ./celosia setup gera C++ em build/runner e build/vu1rec; o código derivado
+  não é versionado e depende de uma cópia legítima do jogo.
+- raylib 5.5 define ES 2.0 por padrão no Android; a configuração aqui seleciona
+  explicitamente ES 3.0.
+- native_renderer_gl.cpp ainda só ativa backend GL para macOS e Vita/vitaGL.
 
-## O que falta para rodar Shadow of the Colossus
+## Incluído nesta branch
+- Submódulo apontando para upstream em commit fixo.
+- Gradle/CMake Android com os diretórios dos fontes gerados.
+- Leitura de env.txt com allow-list.
+- Controles touch básicos com analógico e botões.
+- Script de integração idempotente e workflow de auditoria estática.
 
-1. O upstream não distribui `Port/generated/`: o código C++ recompilado é produzido a partir da ISO suportada. Ele não está no APK nem no repositório.
-2. Adicionado `scripts/prepare_sotc_android.py` para configurar/compilar as ferramentas host, gerar e validar `Port/generated/` localmente e então executar Gradle. A execução completa com uma ISO real ainda não foi feita neste ambiente.
-3. O CMake Android integra as fontes geradas de forma condicional; foi corrigida a remoção do `main.cpp` genérico para não depender da grafia exata do caminho. Essa parte só será exercitada com código gerado.
-4. Adaptar e validar o renderizador GS e seus shaders para os recursos gráficos disponíveis no Android; compilar o runtime não comprova compatibilidade. Esse é o principal bloqueio técnico após a geração/compilação do jogo.
-5. Validar o overlay touch e o gamepad no jogo real; a ponte está conectada no código, mas ainda não foi testada durante gameplay.
-6. Validar boot, áudio, saves e desempenho no aparelho. A prévia padrão da CI não inclui `Port/generated/`, portanto não é um APK jogável.
+## Não validado
+- assembleDebug: não executado neste ambiente; SDK/NDK não configurados.
+- Compilação C++ para Android: não executada.
+- Teste em emulador/aparelho: não executado.
+- Renderer nativo Android: não implementado.
 
-## Como baixar builds e relatórios
-
-- Abra **Actions** e selecione a última execução.
-- Baixe `ShadowColossusAndroid-debug-apk` para o APK de diagnóstico.
-- Baixe `Android-port-audit` para a auditoria do código upstream fixado.
-
-O APK de diagnóstico não é um jogo jogável até que o código recompilado, os recursos e o renderer do título sejam integrados.
-
-## Fluxo local
-
-Consulte [docs/ANDROID_BUILD_FROM_ISO.md](docs/ANDROID_BUILD_FROM_ISO.md) para gerar as fontes da ISO e construir o APK sem enviá-las ao repositório público.
-
-## Fallback gráfico
-
-O bridge força `PS2X_GS_GPU=0` e `PS2X_GS_THREAD=1` no Android antes de abrir `GameActivity` (subclasse de NativeActivity). Isso escolhe o rasterizador GS por software em lugar do backend GPU de desktop OpenGL 4.6/fragment-interlock. É uma tentativa de aumentar a chance de mostrar o jogo no boot; o desempenho e a saída gráfica real precisam de teste no aparelho. Um renderer GLES/Vulkan otimizado continua pendente.
+Não tratar este estado como APK funcional antes de build e teste em dispositivo.
