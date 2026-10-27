@@ -1,0 +1,17 @@
+{
+  "name": "Celosia Android cloud build",
+  "image": "mcr.microsoft.com/devcontainers/cpp:1-ubuntu-24.04",
+  "containerEnv": {
+    "ANDROID_HOME": "/home/vscode/Android/Sdk",
+    "ANDROID_SDK_ROOT": "/home/vscode/Android/Sdk",
+    "LIBGL_ALWAYS_SOFTWARE": "1"
+  },
+  "postCreateCommand": "bash scripts/bootstrap_codespace.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools"
+      ]
+    }
+  }
+}
