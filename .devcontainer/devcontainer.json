@@ -1,6 +1,11 @@
 {
   "name": "Celosia Android cloud build",
   "image": "mcr.microsoft.com/devcontainers/cpp:1-ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/sshd:1": {
+      "version": "latest"
+    }
+  },
   "containerEnv": {
     "ANDROID_HOME": "/home/vscode/Android/Sdk",
     "ANDROID_SDK_ROOT": "/home/vscode/Android/Sdk",
