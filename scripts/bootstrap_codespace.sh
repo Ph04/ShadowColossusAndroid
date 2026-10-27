@@ -72,4 +72,4 @@ sdkmanager --sdk_root="$SDK_ROOT" \
 echo
 echo "Cloud build environment prepared."
 echo "Next: upload your own game ISO into this Codespace (do not commit it), then run:"
-echo "  ./scripts/build_android_apk.sh --iso '/workspaces/ShadowColossusAndroid/your-game.iso'"
+echo "  bash scripts/build_android_apk.sh --iso '/workspaces/ShadowColossusAndroid/your-game.iso'"
