@@ -10,8 +10,8 @@ JOBS="$(printenv CELOSIA_JOBS || echo 2)"
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/build_android_apk.sh --iso /path/to/your-own-game.iso [--jobs N]
-  ./scripts/build_android_apk.sh --skip-setup
+  bash scripts/build_android_apk.sh --iso /path/to/your-own-game.iso [--jobs N]
+  bash scripts/build_android_apk.sh --skip-setup
 
 --iso         Run Celosia's source-generation pipeline using your own ISO.
 --skip-setup  Reuse already generated upstream/celosia/build files.
